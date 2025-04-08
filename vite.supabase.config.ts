@@ -5,7 +5,7 @@ import path from 'path';
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  root: path.resolve(__dirname, 'client'),
+  root: 'client',  // Simplified path to client directory
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './client/src'),
@@ -13,15 +13,8 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: path.resolve(__dirname, 'dist/public'),
+    outDir: '../dist/public',  // Relative to root
     emptyOutDir: true,
-    rollupOptions: {
-      output: {
-        entryFileNames: 'assets/[name]-[hash].js',
-        chunkFileNames: 'assets/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash].[ext]',
-      },
-    },
   },
   define: {
     'process.env.VITE_SUPABASE_URL': JSON.stringify('https://nxrqxozgbjiegjqgjypa.supabase.co'),
