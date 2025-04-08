@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { calculatePlayerScore, rankPlayers, updatePlayerRankings, getTopPlayers, ScoredPlayer, PlayerStats } from './scoring';
 import { getWebSocketManager } from './websocket';
+import { mockProPlayers, generateMockPlayers } from './mock-data';
 
 // Interface for pro player data
 interface ProPlayer extends ScoredPlayer {
@@ -32,56 +33,74 @@ export async function fetchProPlayers(): Promise<ProPlayer[]> {
 
     const apiKey = process.env.FORTNITE_TRACKER_API_KEY || '';
 
-    if (!apiKey) {
-      console.error('FORTNITE_TRACKER_API_KEY is not set in environment variables');
-      throw new Error('API key not configured');
+    // If no API key or we're in development mode, use mock data
+    if (!apiKey || process.env.NODE_ENV === 'development') {
+      console.log('Using mock pro player data');
+      const mockPlayers = generateMockPlayers(100);
+
+      // Update cache
+      proPlayersCache = mockPlayers;
+      lastUpdated = new Date();
+
+      return mockPlayers;
     }
 
-    // In a real implementation, this would fetch from the Fortnite Tracker API
-    // For now, we'll use a simplified approach to demonstrate the concept
+    try {
+      // Attempt to fetch from the real API
+      const response = await axios.get('https://fortnitetracker.com/api/v1/powerrankings/top500', {
+        headers: {
+          'TRN-Api-Key': apiKey
+        }
+      });
 
-    // Fetch top players from the API
-    const response = await axios.get('https://fortnitetracker.com/api/v1/powerrankings/top500', {
-      headers: {
-        'TRN-Api-Key': apiKey
-      }
-    });
+      // Process the response data
+      const players = response.data.map((player: any) => ({
+        id: player.accountId,
+        name: player.name,
+        team: player.team || 'Free Agent',
+        avatar: player.avatar,
+        placements: player.recentPlacements || [],
+        prPoints: player.points || 0,
+        earnings: player.earnings || 0,
+        eliminations: player.eliminations || 0,
+        winRate: player.winRate || 0,
+        kd: player.kd || 0,
+        playerId: player.accountId,
+        playerName: player.name
+      }));
 
-    // Process the response data
-    const players = response.data.map((player: any) => ({
-      id: player.accountId,
-      name: player.name,
-      team: player.team || 'Free Agent',
-      avatar: player.avatar,
-      placements: player.recentPlacements || [],
-      prPoints: player.points || 0,
-      earnings: player.earnings || 0,
-      eliminations: player.eliminations || 0,
-      winRate: player.winRate || 0,
-      kd: player.kd || 0,
-      playerId: player.accountId,
-      playerName: player.name
-    }));
+      // Calculate scores and rankings
+      const rankedPlayers = rankPlayers(players);
 
-    // Calculate scores and rankings
-    const rankedPlayers = rankPlayers(players);
+      // Update cache
+      proPlayersCache = rankedPlayers;
+      lastUpdated = new Date();
 
-    // Update cache
-    proPlayersCache = rankedPlayers;
-    lastUpdated = new Date();
+      return rankedPlayers;
+    } catch (apiError) {
+      console.error('Error fetching from Fortnite Tracker API:', apiError);
+      console.log('Falling back to mock data');
 
-    return rankedPlayers;
+      // Fall back to mock data
+      const mockPlayers = generateMockPlayers(100);
+
+      // Update cache
+      proPlayersCache = mockPlayers;
+      lastUpdated = new Date();
+
+      return mockPlayers;
+    }
   } catch (error) {
-    console.error('Error fetching pro players:', error);
+    console.error('Error in fetchProPlayers:', error);
 
     // If we have cached data, return it even if it's stale
     if (proPlayersCache.length > 0) {
-      console.log('Using stale cached pro player data due to API error');
+      console.log('Using stale cached pro player data due to error');
       return proPlayersCache;
     }
 
-    // If we have no cached data, return sample data
-    return getSampleProPlayers();
+    // If we have no cached data, return mock data
+    return generateMockPlayers(100);
   }
 }
 
@@ -107,61 +126,122 @@ export async function updateProPlayerRankings(): Promise<ProPlayer[]> {
     // Fetch fresh data
     const apiKey = process.env.FORTNITE_TRACKER_API_KEY || '';
 
-    if (!apiKey) {
-      console.error('FORTNITE_TRACKER_API_KEY is not set in environment variables');
-      throw new Error('API key not configured');
+    // If no API key or we're in development mode, use mock data
+    if (!apiKey || process.env.NODE_ENV === 'development') {
+      console.log('Using mock data for pro player rankings update');
+
+      // Generate new mock data with slightly different rankings
+      const mockPlayers = generateMockPlayers(100);
+
+      // Update rankings with previous rank information
+      const updatedRankings = updatePlayerRankings(mockPlayers, previousRankings);
+
+      // Update cache
+      proPlayersCache = updatedRankings;
+      lastUpdated = new Date();
+
+      // Notify clients about ranking changes via WebSocket
+      const websocketManager = getWebSocketManager();
+      if (websocketManager) {
+        updatedRankings.forEach(player => {
+          if (player.rank !== player.previousRank) {
+            websocketManager.notifyProPlayerRankingUpdate(
+              player.id,
+              player.name,
+              player.rank || 0,
+              player.previousRank || 0,
+              player.score || 0
+            );
+          }
+        });
+      }
+
+      return updatedRankings;
     }
 
-    // Fetch updated data from the API
-    const response = await axios.get('https://fortnitetracker.com/api/v1/powerrankings/top500', {
-      headers: {
-        'TRN-Api-Key': apiKey
-      }
-    });
-
-    // Process the response data
-    const players = response.data.map((player: any) => ({
-      id: player.accountId,
-      name: player.name,
-      team: player.team || 'Free Agent',
-      avatar: player.avatar,
-      placements: player.recentPlacements || [],
-      prPoints: player.points || 0,
-      earnings: player.earnings || 0,
-      eliminations: player.eliminations || 0,
-      winRate: player.winRate || 0,
-      kd: player.kd || 0,
-      playerId: player.accountId,
-      playerName: player.name
-    }));
-
-    // Update rankings with previous rank information
-    const updatedRankings = updatePlayerRankings(players, previousRankings);
-
-    // Update cache
-    proPlayersCache = updatedRankings;
-    lastUpdated = new Date();
-
-    // Notify clients about ranking changes via WebSocket
-    const websocketManager = getWebSocketManager();
-    if (websocketManager) {
-      updatedRankings.forEach(player => {
-        if (player.rank !== player.previousRank) {
-          websocketManager.notifyProPlayerRankingUpdate(
-            player.id,
-            player.name,
-            player.rank || 0,
-            player.previousRank || 0,
-            player.score || 0
-          );
+    try {
+      // Fetch updated data from the API
+      const response = await axios.get('https://fortnitetracker.com/api/v1/powerrankings/top500', {
+        headers: {
+          'TRN-Api-Key': apiKey
         }
       });
-    }
 
-    return updatedRankings;
+      // Process the response data
+      const players = response.data.map((player: any) => ({
+        id: player.accountId,
+        name: player.name,
+        team: player.team || 'Free Agent',
+        avatar: player.avatar,
+        placements: player.recentPlacements || [],
+        prPoints: player.points || 0,
+        earnings: player.earnings || 0,
+        eliminations: player.eliminations || 0,
+        winRate: player.winRate || 0,
+        kd: player.kd || 0,
+        playerId: player.accountId,
+        playerName: player.name
+      }));
+
+      // Update rankings with previous rank information
+      const updatedRankings = updatePlayerRankings(players, previousRankings);
+
+      // Update cache
+      proPlayersCache = updatedRankings;
+      lastUpdated = new Date();
+
+      // Notify clients about ranking changes via WebSocket
+      const websocketManager = getWebSocketManager();
+      if (websocketManager) {
+        updatedRankings.forEach(player => {
+          if (player.rank !== player.previousRank) {
+            websocketManager.notifyProPlayerRankingUpdate(
+              player.id,
+              player.name,
+              player.rank || 0,
+              player.previousRank || 0,
+              player.score || 0
+            );
+          }
+        });
+      }
+
+      return updatedRankings;
+    } catch (apiError) {
+      console.error('Error fetching from Fortnite Tracker API:', apiError);
+      console.log('Falling back to mock data for rankings update');
+
+      // Fall back to mock data
+      const mockPlayers = generateMockPlayers(100);
+
+      // Update rankings with previous rank information
+      const updatedRankings = updatePlayerRankings(mockPlayers, previousRankings);
+
+      // Update cache
+      proPlayersCache = updatedRankings;
+      lastUpdated = new Date();
+
+      // Notify clients about ranking changes via WebSocket
+      const websocketManager = getWebSocketManager();
+      if (websocketManager) {
+        updatedRankings.forEach(player => {
+          if (player.rank !== player.previousRank) {
+            websocketManager.notifyProPlayerRankingUpdate(
+              player.id,
+              player.name,
+              player.rank || 0,
+              player.previousRank || 0,
+              player.score || 0
+            );
+          }
+        });
+      }
+
+      return updatedRankings;
+    }
   } catch (error) {
     console.error('Error updating pro player rankings:', error);
-    return proPlayersCache;
+    return proPlayersCache.length > 0 ? proPlayersCache : generateMockPlayers(100);
   }
 }
 
@@ -170,116 +250,7 @@ export async function updateProPlayerRankings(): Promise<ProPlayer[]> {
  * @returns Array of sample pro players
  */
 function getSampleProPlayers(): ProPlayer[] {
-  const samplePlayers: ProPlayer[] = [
-    {
-      id: 'player1',
-      name: 'Bugha',
-      team: 'Sentinels',
-      avatar: 'https://example.com/avatar1.jpg',
-      placements: [
-        { tournamentId: 't1', tournamentName: 'FNCS Chapter 4 Season 1', placement: 1, date: '2023-03-15' },
-        { tournamentId: 't2', tournamentName: 'Dreamhack Open', placement: 3, date: '2023-02-20' }
-      ],
-      prPoints: 85000,
-      earnings: 750000,
-      eliminations: 450,
-      winRate: 15,
-      kd: 4.5,
-      playerId: 'player1',
-      playerName: 'Bugha',
-      score: 0,
-      placementScore: 0,
-      prScore: 0,
-      earningsScore: 0
-    },
-    {
-      id: 'player2',
-      name: 'MrSavage',
-      team: '100 Thieves',
-      avatar: 'https://example.com/avatar2.jpg',
-      placements: [
-        { tournamentId: 't1', tournamentName: 'FNCS Chapter 4 Season 1', placement: 2, date: '2023-03-15' },
-        { tournamentId: 't3', tournamentName: 'Cash Cup', placement: 1, date: '2023-01-10' }
-      ],
-      prPoints: 78000,
-      earnings: 680000,
-      eliminations: 420,
-      winRate: 14,
-      kd: 4.2,
-      playerId: 'player2',
-      playerName: 'MrSavage',
-      score: 0,
-      placementScore: 0,
-      prScore: 0,
-      earningsScore: 0
-    },
-    {
-      id: 'player3',
-      name: 'Mongraal',
-      team: 'FaZe Clan',
-      avatar: 'https://example.com/avatar3.jpg',
-      placements: [
-        { tournamentId: 't1', tournamentName: 'FNCS Chapter 4 Season 1', placement: 5, date: '2023-03-15' },
-        { tournamentId: 't2', tournamentName: 'Dreamhack Open', placement: 2, date: '2023-02-20' }
-      ],
-      prPoints: 72000,
-      earnings: 620000,
-      eliminations: 400,
-      winRate: 13,
-      kd: 4.0,
-      playerId: 'player3',
-      playerName: 'Mongraal',
-      score: 0,
-      placementScore: 0,
-      prScore: 0,
-      earningsScore: 0
-    },
-    {
-      id: 'player4',
-      name: 'Benjyfishy',
-      team: 'NRG',
-      avatar: 'https://example.com/avatar4.jpg',
-      placements: [
-        { tournamentId: 't1', tournamentName: 'FNCS Chapter 4 Season 1', placement: 4, date: '2023-03-15' },
-        { tournamentId: 't3', tournamentName: 'Cash Cup', placement: 3, date: '2023-01-10' }
-      ],
-      prPoints: 68000,
-      earnings: 580000,
-      eliminations: 380,
-      winRate: 12,
-      kd: 3.8,
-      playerId: 'player4',
-      playerName: 'Benjyfishy',
-      score: 0,
-      placementScore: 0,
-      prScore: 0,
-      earningsScore: 0
-    },
-    {
-      id: 'player5',
-      name: 'Clix',
-      team: 'NRG',
-      avatar: 'https://example.com/avatar5.jpg',
-      placements: [
-        { tournamentId: 't1', tournamentName: 'FNCS Chapter 4 Season 1', placement: 3, date: '2023-03-15' },
-        { tournamentId: 't2', tournamentName: 'Dreamhack Open', placement: 5, date: '2023-02-20' }
-      ],
-      prPoints: 65000,
-      earnings: 550000,
-      eliminations: 360,
-      winRate: 11,
-      kd: 3.6,
-      playerId: 'player5',
-      playerName: 'Clix',
-      score: 0,
-      placementScore: 0,
-      prScore: 0,
-      earningsScore: 0
-    }
-  ];
-
-  // Calculate scores and rankings
-  return rankPlayers(samplePlayers);
+  return mockProPlayers;
 }
 
 /**

@@ -3,6 +3,12 @@ import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase-client";
 import { useToast } from "@/hooks/use-toast";
 
+type ProfileUpdateData = {
+  username?: string;
+  bio?: string;
+  avatar_url?: string;
+};
+
 type AuthContextType = {
   session: Session | null;
   user: User | null;
@@ -10,6 +16,8 @@ type AuthContextType = {
   signUp: (email: string, password: string, username: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  updateProfile: (data: ProfileUpdateData) => Promise<void>;
+  updatePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 };
 
 export const SupabaseAuthContext = createContext<AuthContextType | null>(null);
@@ -151,6 +159,93 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateProfile = async (data: ProfileUpdateData) => {
+    try {
+      setIsLoading(true);
+      console.log('Updating profile with:', data);
+
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Update user metadata
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          ...user.user_metadata,
+          ...data
+        }
+      });
+
+      if (error) {
+        console.error('Profile update error:', error);
+        throw error;
+      }
+
+      toast({
+        title: "Profile updated",
+        description: "Your profile has been successfully updated",
+        variant: "default",
+      });
+    } catch (error: any) {
+      console.error('Profile update error:', error);
+      toast({
+        title: "Profile update failed",
+        description: error.message || "An error occurred while updating your profile",
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updatePassword = async (currentPassword: string, newPassword: string) => {
+    try {
+      setIsLoading(true);
+
+      if (!user || !user.email) {
+        throw new Error('User not authenticated');
+      }
+
+      // First verify the current password by signing in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+
+      if (signInError) {
+        console.error('Password verification error:', signInError);
+        throw new Error('Current password is incorrect');
+      }
+
+      // Update the password
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) {
+        console.error('Password update error:', error);
+        throw error;
+      }
+
+      toast({
+        title: "Password updated",
+        description: "Your password has been successfully updated",
+        variant: "default",
+      });
+    } catch (error: any) {
+      console.error('Password update error:', error);
+      toast({
+        title: "Password update failed",
+        description: error.message || "An error occurred while updating your password",
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <SupabaseAuthContext.Provider
       value={{
@@ -160,6 +255,8 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
         signUp,
         signIn,
         signOut,
+        updateProfile,
+        updatePassword,
       }}
     >
       {children}

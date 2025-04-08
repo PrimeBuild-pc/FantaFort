@@ -5,16 +5,19 @@ import { Team, TeamMember, FortnitePlayer } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import PlayerCard from "@/components/player-card";
 import EmptyPlayerSlot from "@/components/empty-player-slot";
+import { PrizePoolPayPal } from "@/components/prize-pool-paypal";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { queryClient } from "@/lib/queryClient";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function MyTeam() {
   const { toast } = useToast();
   const [isCreateTeamDialogOpen, setIsCreateTeamDialogOpen] = useState(false);
   const [teamName, setTeamName] = useState("");
+  const [activeTab, setActiveTab] = useState("roster");
 
   // Fetch team details
   const { data: team, isLoading: isLoadingTeam } = useQuery<Team>({
@@ -263,33 +266,106 @@ export default function MyTeam() {
           </Card>
         </div>
 
-        {/* Team Roster Section */}
+        {/* Team Content Section */}
         <div className="lg:col-span-8">
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle>TEAM ROSTER</CardTitle>
-                <span className="text-sm text-gray-400">
-                  <span className="text-[#00F0B5] font-medium">{filledSlots}/{totalSlots}</span> Players
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {rosterPlayers.map(player => (
-                  <PlayerCard key={player.id} player={player} />
-                ))}
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-3 mb-6">
+              <TabsTrigger value="roster">Team Roster</TabsTrigger>
+              <TabsTrigger value="stats">Team Stats</TabsTrigger>
+              <TabsTrigger value="prize-pool">Prize Pool</TabsTrigger>
+            </TabsList>
 
-                {/* Empty slots */}
-                {Array.from({ length: emptySlots }).map((_, index) => (
-                  <EmptyPlayerSlot
-                    key={`empty-${index}`}
-                    remainingSlots={emptySlots}
-                  />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+            <TabsContent value="roster">
+              <Card>
+                <CardHeader>
+                  <div className="flex justify-between items-center">
+                    <CardTitle>TEAM ROSTER</CardTitle>
+                    <span className="text-sm text-gray-400">
+                      <span className="text-[#00F0B5] font-medium">{filledSlots}/{totalSlots}</span> Players
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {rosterPlayers.map(player => (
+                      <PlayerCard key={player.id} player={player} />
+                    ))}
+
+                    {/* Empty slots */}
+                    {Array.from({ length: emptySlots }).map((_, index) => (
+                      <EmptyPlayerSlot
+                        key={`empty-${index}`}
+                        remainingSlots={emptySlots}
+                      />
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="stats">
+              <Card>
+                <CardHeader>
+                  <CardTitle>TEAM STATISTICS</CardTitle>
+                  <CardDescription>Performance metrics for your team</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Total Points</span>
+                        <span className="font-bold text-[#00F0B5]">{team.points.toLocaleString()}</span>
+                      </div>
+                      <div className="w-full bg-[#1E1E1E] rounded-full h-2.5">
+                        <div className="bg-gradient-to-r from-[#2D0E75] to-[#00F0B5] h-2.5 rounded-full stats-bar" style={{ width: '65%' }}></div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Team Rank</span>
+                        <span className="font-bold text-[#00F0B5]">#{team.rank}</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Tournaments Played</span>
+                        <span className="font-bold text-[#00F0B5]">3</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Best Placement</span>
+                        <span className="font-bold text-[#00F0B5]">4th</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Win Rate</span>
+                        <span className="font-bold text-[#00F0B5]">25%</span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="prize-pool">
+              <PrizePoolPayPal
+                teamId={team.id}
+                teamName={team.name}
+                onPrizePoolCreated={(amount) => {
+                  toast({
+                    title: "Prize Pool Contribution",
+                    description: `Successfully added $${amount} to the prize pool!`,
+                  });
+                }}
+              />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>

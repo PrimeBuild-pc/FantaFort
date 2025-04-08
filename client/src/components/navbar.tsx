@@ -4,11 +4,14 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { User } from "@/lib/types";
 import MobileMenu from "./mobile-menu";
+import { UserProfileDropdown } from "./user-profile-dropdown";
+import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
 
 export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [location] = useLocation();
-  const { data: user } = useQuery<User | null>({
+  const { user } = useSupabaseAuth();
+  const { data: userData } = useQuery<User | null>({
     queryKey: ['/api/user/current'],
   });
 
@@ -55,32 +58,13 @@ export default function Navbar() {
 
             {/* User menu */}
             <div className="flex items-center">
-              {user ? (
-                <>
-                  <div className="mr-4 hidden md:block">
-                    <span className="text-[#00F0B5] font-semibold">{user.coins.toLocaleString()}</span>
-                    <i className="fas fa-coins ml-1 text-yellow-400"></i>
-                  </div>
-                  <div className="relative">
-                    <button className="flex items-center space-x-2 focus:outline-none group">
-                      <div className="h-8 w-8 rounded-full bg-gradient-to-r from-[#2D0E75] to-[#1890FF] flex items-center justify-center text-white font-semibold overflow-hidden transition-transform duration-300 group-hover:scale-110">
-                        {user.avatar ? (
-                          <img src={user.avatar} alt={user.username} className="w-full h-full object-cover" />
-                        ) : (
-                          user.username.substring(0, 2).toUpperCase()
-                        )}
-                      </div>
-                      <span className="hidden md:block font-medium text-white group-hover:text-[#00F0B5] transition-colors">{user.username}</span>
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <Link href="/auth">
-                  <Button variant="fortnite" size="sm">
-                    Login
-                  </Button>
-                </Link>
+              {userData && (
+                <div className="mr-4 hidden md:block">
+                  <span className="text-[#00F0B5] font-semibold">{userData.coins.toLocaleString()}</span>
+                  <i className="fas fa-coins ml-1 text-yellow-400"></i>
+                </div>
               )}
+              <UserProfileDropdown />
               <button className="ml-4 md:hidden" onClick={() => setIsMobileMenuOpen(true)}>
                 <i className="fas fa-bars text-gray-300"></i>
               </button>

@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 import Layout from "@/components/layout";
 import Dashboard from "@/pages/dashboard";
 import EnhancedAuthPage from "@/pages/enhanced-auth-page";
+import ProfilePage from "@/pages/profile";
 import MyTeam from "@/pages/my-team";
 import Leaderboard from "@/pages/leaderboard";
 import Marketplace from "@/pages/marketplace";
@@ -24,6 +25,7 @@ function Router() {
     <Switch>
       <SupabaseProtectedRoute path="/" component={Dashboard} />
       <Route path="/auth" component={EnhancedAuthPage} />
+      <Route path="/profile" component={ProfilePage} />
       <SupabaseProtectedRoute path="/team" component={MyTeam} />
       <SupabaseProtectedRoute path="/leaderboard" component={Leaderboard} />
       <SupabaseProtectedRoute path="/marketplace" component={Marketplace} />
