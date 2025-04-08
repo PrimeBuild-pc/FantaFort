@@ -1,15 +1,12 @@
 {
-  "buildCommand": "npm run build:simple",
-  "outputDirectory": "dist",
   "functions": {
-    "api/index.js": {
+    "api/vercel.js": {
       "memory": 1024,
       "maxDuration": 10
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api" },
-    { "source": "/ws", "destination": "/api" }
+    { "source": "/api", "destination": "/api/vercel.js" }
   ],
   "env": {
     "SUPABASE_URL": "https://nxrqxozgbjiegjqgjypa.supabase.co",
