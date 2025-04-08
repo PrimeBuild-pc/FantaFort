@@ -1,12 +1,12 @@
 {
   "functions": {
-    "api/serverless.js": {
+    "api/hello.js": {
       "memory": 1024,
       "maxDuration": 10
     }
   },
   "rewrites": [
-    { "source": "/api", "destination": "/api/serverless.js" }
+    { "source": "/api/hello", "destination": "/api/hello.js" }
   ],
   "env": {
     "SUPABASE_URL": "https://nxrqxozgbjiegjqgjypa.supabase.co",
