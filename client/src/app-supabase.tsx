@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import Layout from "@/components/layout";
 import Dashboard from "@/pages/dashboard";
-import SupabaseAuthPage from "@/pages/supabase-auth-page";
+import EnhancedAuthPage from "@/pages/enhanced-auth-page";
 import MyTeam from "@/pages/my-team";
 import Leaderboard from "@/pages/leaderboard";
 import Marketplace from "@/pages/marketplace";
@@ -23,7 +23,7 @@ function Router() {
   return (
     <Switch>
       <SupabaseProtectedRoute path="/" component={Dashboard} />
-      <Route path="/auth" component={SupabaseAuthPage} />
+      <Route path="/auth" component={EnhancedAuthPage} />
       <SupabaseProtectedRoute path="/team" component={MyTeam} />
       <SupabaseProtectedRoute path="/leaderboard" component={Leaderboard} />
       <SupabaseProtectedRoute path="/marketplace" component={Marketplace} />

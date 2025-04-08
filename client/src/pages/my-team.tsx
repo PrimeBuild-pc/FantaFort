@@ -15,23 +15,23 @@ export default function MyTeam() {
   const { toast } = useToast();
   const [isCreateTeamDialogOpen, setIsCreateTeamDialogOpen] = useState(false);
   const [teamName, setTeamName] = useState("");
-  
+
   // Fetch team details
   const { data: team, isLoading: isLoadingTeam } = useQuery<Team>({
     queryKey: ['/api/team'],
   });
-  
+
   // Fetch team members
   const { data: members, isLoading: isLoadingMembers } = useQuery<TeamMember[]>({
     queryKey: ['/api/team/members'],
     enabled: !!team,
   });
-  
+
   // Fetch team roster
   const { data: players, isLoading: isLoadingPlayers } = useQuery<FortnitePlayer[]>({
     queryKey: ['/api/players'],
   });
-  
+
   // Team creation mutation
   const createTeamMutation = useMutation({
     mutationFn: async (data: { name: string }) => {
@@ -42,12 +42,23 @@ export default function MyTeam() {
         },
         body: JSON.stringify(data),
       });
-      
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create team');
+        const text = await response.text();
+        let errorMessage = 'Failed to create team';
+
+        try {
+          // Try to parse as JSON
+          const errorData = JSON.parse(text);
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          // If parsing fails, use the text as is
+          errorMessage = text || response.statusText || errorMessage;
+        }
+
+        throw new Error(errorMessage);
       }
-      
+
       return response.json();
     },
     onSuccess: () => {
@@ -66,7 +77,7 @@ export default function MyTeam() {
       });
     }
   });
-  
+
   const handleInviteMember = () => {
     toast({
       title: "Coming Soon",
@@ -83,10 +94,10 @@ export default function MyTeam() {
       });
       return;
     }
-    
+
     createTeamMutation.mutate({ name: teamName.trim() });
   };
-  
+
   // Loading state
   if (isLoadingTeam || isLoadingMembers || isLoadingPlayers) {
     return (
@@ -96,7 +107,7 @@ export default function MyTeam() {
       </div>
     );
   }
-  
+
   // If no team exists yet
   if (!team) {
     return (
@@ -112,14 +123,14 @@ export default function MyTeam() {
               </div>
             </div>
             <p className="text-gray-400 mb-6">You haven't created a team yet. Create your own team to start managing players and competing in tournaments.</p>
-            <Button 
-              variant="fortnite" 
+            <Button
+              variant="fortnite"
               className="w-full max-w-xs mx-auto"
               onClick={() => setIsCreateTeamDialogOpen(true)}
             >
               Create New Team
             </Button>
-            
+
             <Dialog open={isCreateTeamDialogOpen} onOpenChange={setIsCreateTeamDialogOpen}>
               <DialogContent className="bg-[#1E1E1E] border-[#333] text-white">
                 <DialogHeader>
@@ -128,27 +139,27 @@ export default function MyTeam() {
                     Enter a name for your Fortnite Fantasy team
                   </DialogDescription>
                 </DialogHeader>
-                
+
                 <div className="py-4">
                   <Label htmlFor="team-name" className="text-gray-300">Team Name</Label>
-                  <Input 
+                  <Input
                     id="team-name"
                     value={teamName}
                     onChange={(e) => setTeamName(e.target.value)}
-                    placeholder="Enter an epic team name" 
+                    placeholder="Enter an epic team name"
                     className="bg-[#121212] border-[#333] text-white mt-2"
                   />
                 </div>
-                
+
                 <DialogFooter>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={() => setIsCreateTeamDialogOpen(false)}
                     className="border-[#333] text-gray-300 hover:bg-[#333] hover:text-white"
                   >
                     Cancel
                   </Button>
-                  <Button 
+                  <Button
                     variant="fortnite"
                     onClick={handleCreateTeam}
                     disabled={createTeamMutation.isPending}
@@ -176,7 +187,7 @@ export default function MyTeam() {
   const totalSlots = 8;
   const filledSlots = rosterPlayers.length;
   const emptySlots = totalSlots - filledSlots;
-  
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
@@ -190,7 +201,7 @@ export default function MyTeam() {
           </Button>
         </div>
       </div>
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Team Members Section */}
         <div className="lg:col-span-4">
@@ -204,9 +215,9 @@ export default function MyTeam() {
                   {members.map((member) => (
                     <div key={member.id} className="flex items-center p-3 bg-[#1E1E1E] rounded-lg">
                       <div className="h-10 w-10 rounded-full overflow-hidden mr-3">
-                        <img 
-                          src={member.avatar || "https://via.placeholder.com/40"} 
-                          alt={member.username} 
+                        <img
+                          src={member.avatar || "https://via.placeholder.com/40"}
+                          alt={member.username}
                           className="h-full w-full object-cover"
                         />
                       </div>
@@ -225,7 +236,7 @@ export default function MyTeam() {
               )}
             </CardContent>
           </Card>
-          
+
           <Card className="mt-6">
             <CardHeader>
               <CardTitle>TEAM SETTINGS</CardTitle>
@@ -251,7 +262,7 @@ export default function MyTeam() {
             </CardContent>
           </Card>
         </div>
-        
+
         {/* Team Roster Section */}
         <div className="lg:col-span-8">
           <Card>
@@ -268,11 +279,11 @@ export default function MyTeam() {
                 {rosterPlayers.map(player => (
                   <PlayerCard key={player.id} player={player} />
                 ))}
-                
+
                 {/* Empty slots */}
                 {Array.from({ length: emptySlots }).map((_, index) => (
-                  <EmptyPlayerSlot 
-                    key={`empty-${index}`} 
+                  <EmptyPlayerSlot
+                    key={`empty-${index}`}
                     remainingSlots={emptySlots}
                   />
                 ))}

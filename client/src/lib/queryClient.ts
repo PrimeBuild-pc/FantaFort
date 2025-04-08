@@ -1,9 +1,9 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { handleResponseError, safeParseJSON } from "./error-handler";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    await handleResponseError(res);
   }
 }
 
@@ -23,6 +23,15 @@ export async function apiRequest(
   return res;
 }
 
+export async function apiRequestJSON<T>(
+  method: string,
+  url: string,
+  data?: unknown | undefined,
+): Promise<T> {
+  const res = await apiRequest(method, url, data);
+  return await safeParseJSON(res) as T;
+}
+
 type UnauthorizedBehavior = "returnNull" | "throw";
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
@@ -38,7 +47,7 @@ export const getQueryFn: <T>(options: {
     }
 
     await throwIfResNotOk(res);
-    return await res.json();
+    return await safeParseJSON(res);
   };
 
 export const queryClient = new QueryClient({
