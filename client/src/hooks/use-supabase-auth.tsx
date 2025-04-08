@@ -43,7 +43,8 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string, username: string) => {
     try {
       setIsLoading(true);
-      
+      console.log('Starting signup process with:', { email, username });
+
       // Sign up with Supabase Auth
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -53,34 +54,30 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
             username,
             coins: 2500, // Default starting coins
           },
+          // Disable email confirmation for now to simplify testing
+          emailRedirectTo: window.location.origin,
         },
       });
 
-      if (error) throw error;
+      console.log('Supabase auth signup response:', data);
 
-      // Create user profile in the database
-      if (data.user) {
-        const { error: profileError } = await supabase
-          .from('users')
-          .insert({
-            id: data.user.id,
-            username,
-            email,
-            coins: 2500,
-            team_id: null,
-            avatar: null,
-            is_public_profile: false
-          });
-
-        if (profileError) throw profileError;
+      if (error) {
+        console.error('Supabase auth signup error:', error);
+        throw error;
       }
+
+      // Skip creating a profile for now - we'll let Supabase handle the auth
+      // and create the profile later if needed
 
       toast({
         title: "Registration successful",
-        description: "Please check your email to confirm your account",
+        description: data.user ? "Account created successfully!" : "Please check your email to confirm your account",
         variant: "default",
       });
+
+      return data;
     } catch (error: any) {
+      console.error('Registration error:', error);
       toast({
         title: "Registration failed",
         description: error.message || "An error occurred during registration",
@@ -95,20 +92,29 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       setIsLoading(true);
-      
-      const { error } = await supabase.auth.signInWithPassword({
+      console.log('Starting signin process with:', { email });
+
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) throw error;
+      console.log('Supabase auth signin response:', data);
+
+      if (error) {
+        console.error('Supabase auth signin error:', error);
+        throw error;
+      }
 
       toast({
         title: "Login successful",
         description: "Welcome back!",
         variant: "default",
       });
+
+      return data;
     } catch (error: any) {
+      console.error('Login error:', error);
       toast({
         title: "Login failed",
         description: error.message || "Invalid email or password",
@@ -123,9 +129,9 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     try {
       setIsLoading(true);
-      
+
       const { error } = await supabase.auth.signOut();
-      
+
       if (error) throw error;
 
       toast({

@@ -5,17 +5,17 @@ import path from 'path';
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  root: path.resolve(__dirname, 'client'),
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './client/src'),
+      '@shared': path.resolve(__dirname, './shared'),
     },
   },
   build: {
-    outDir: 'dist/public',
+    outDir: path.resolve(__dirname, 'dist/public'),
+    emptyOutDir: true,
     rollupOptions: {
-      input: {
-        main: path.resolve(__dirname, 'client/index.html'),
-      },
       output: {
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',

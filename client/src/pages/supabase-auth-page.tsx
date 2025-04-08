@@ -70,6 +70,7 @@ export default function SupabaseAuthPage() {
 
   const onLoginSubmit = async (data: LoginFormValues) => {
     try {
+      console.log('Login form submitted:', { email: data.email });
       await signIn(data.email, data.password);
     } catch (error) {
       console.error("Login error:", error);
@@ -78,6 +79,7 @@ export default function SupabaseAuthPage() {
 
   const onRegisterSubmit = async (data: RegisterFormValues) => {
     try {
+      console.log('Register form submitted:', { email: data.email, username: data.username });
       await signUp(data.email, data.password, data.username);
     } catch (error) {
       console.error("Registration error:", error);
