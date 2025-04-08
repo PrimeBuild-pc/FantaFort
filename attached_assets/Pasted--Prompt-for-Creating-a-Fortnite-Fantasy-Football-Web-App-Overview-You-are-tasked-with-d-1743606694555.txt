@@ -1,0 +1,78 @@
+**Prompt for: Creating a Fortnite Fantasy Football Web App**
+
+**Overview:**
+You are tasked with developing a web application for a fantasy football game that uses Fortnite pro players instead of traditional football players. The app will incorporate real-time statistics sourced from [Fortnite Tracker](https://fortnitetracker.com/) and will allow users to form and join teams with friends. The design should be modern, futuristic, and feature dark tones with subtle Fortnite-themed elements.
+
+---
+
+**Key Features & Functionalities:**
+
+1. **User Authentication:**
+   - Implement a secure login and registration system.
+   - Include options for creating a user profile with a unique username or ID.
+
+2. **Team Formation:**
+   - Enable users to join existing teams or create their own.
+   - Facilitate team invitations through usernames or IDs.
+   - Allow team members to view each other's stats and exchange players.
+
+3. **Real-Time Statistics:**
+   - Integrate API calls to fetch live statistics from Fortnite Tracker.
+   - Display player stats in a user-friendly format, including leaderboards.
+
+4. **Gameplay Options:**
+   - Offer users the choice to use virtual coins or real money for transactions.
+   - Implement a payment integration through PayPal for real-money options.
+
+5. **Exchange Mechanism:**
+   - Provide functionality for users to trade players within their teams.
+   - Include restrictions or cooldowns to maintain balance in exchanges.
+
+6. **Design Aesthetic:**
+   - Use modern and sleek UI/UX design principles.
+   - Incorporate dark tones to align with the Fortnite theme.
+   - Include minimal Fortnite-related graphics to enhance the user experience without overwhelming the interface.
+
+---
+
+**Technical Specifications:**
+
+- **Frontend:**
+  - Use a JavaScript framework such as React or Angular for a dynamic user interface.
+  - Implement responsive design to ensure compatibility with multiple devices.
+
+- **Backend:**
+  - Set up a server using Node.js and Express for handling API requests.
+  - Use a database like MongoDB or PostgreSQL for storing user data, team information, and transaction records.
+
+- **API Integration:**
+  - Use RESTful APIs to interact with Fortnite Tracker.
+  - Ensure real-time data updates without requiring user refreshes (consider WebSockets).
+
+- **Payment Processing:**
+  - Implement PayPal SDK for handling financial transactions securely.
+
+---
+
+**Development Process:**
+
+1. **Wireframing & Prototyping:**
+   - Create wireframes for the app layout including dashboards, team pages, and statistics displays.
+   - Build a clickable prototype to gather user feedback on the user journey.
+
+2. **Agile Development:**
+   - Adopt an Agile methodology for iterative testing and feedback.
+   - Conduct regular sprints for feature implementation, followed by user testing.
+
+3. **Testing:**
+   - Perform extensive testing for functionality and usability.
+   - Ensure all transactions and API integrations work seamlessly.
+
+4. **Deployment:**
+   - Choose a cloud hosting service like AWS or Heroku for deployment.
+   - Monitor the app post-launch for performance metrics and user feedback.
+
+---
+
+**Conclusion:**
+This prompt outlines the essential components and steps required to develop a Fortnite-themed fantasy football web application. Each feature and design consideration is aimed at enhancing user engagement and providing a unique experience while leveraging the excitement of Fortnite esports.
