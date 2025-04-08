@@ -1,18 +1,17 @@
-import express from 'express';
-import cors from 'cors';
-import session from 'express-session';
-import { setupAuth } from '../server/auth';
-import { storage } from '../server/storage';
-import { supabaseStorage } from '../server/supabase-storage';
-import { initializeDatabase } from '../server/supabase-db';
-import { setupPlayerRoutes } from '../server/player-routes';
-import { setupTournamentRoutes } from '../server/tournament-routes';
+const express = require('express');
+const cors = require('cors');
+const session = require('express-session');
+const { setupAuthRoutes } = require('./auth-simple');
+const { supabase } = require('./supabase');
 
 // Create Express app
 const app = express();
 
 // Configure middleware
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
 app.use(express.json());
 
 // Set trust proxy for secure cookies in production
@@ -23,7 +22,6 @@ const sessionSettings = {
   secret: process.env.SESSION_SECRET || "fortnite-fantasy-session-secret-key",
   resave: false,
   saveUninitialized: false,
-  store: supabaseStorage.sessionStore,
   cookie: {
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     secure: process.env.NODE_ENV === "production",
@@ -34,21 +32,8 @@ const sessionSettings = {
 
 app.use(session(sessionSettings));
 
-// Setup authentication
-setupAuth(app);
-
-// Initialize database
-initializeDatabase().then(() => {
-  console.log('Database initialized');
-}).catch(err => {
-  console.error('Error initializing database:', err);
-});
-
-// Setup player routes
-setupPlayerRoutes(app);
-
-// Setup tournament routes
-setupTournamentRoutes(app);
+// Setup authentication routes
+setupAuthRoutes(app);
 
 // Setup basic API routes
 app.get('/api/health', (req, res) => {
@@ -60,24 +45,30 @@ app.get('/api/profile', async (req, res) => {
   if (!req.isAuthenticated()) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
-  
+
   try {
     const userId = req.user.id;
-    const user = await supabaseStorage.getUserById(userId);
-    
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (error) throw error;
+
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     // Return safe user data
     res.json({
       id: user.id,
       username: user.username,
       coins: user.coins,
-      teamId: user.teamId,
+      teamId: user.team_id,
       avatar: user.avatar,
       email: user.email,
-      isPublicProfile: user.isPublicProfile
+      isPublicProfile: user.is_public_profile
     });
   } catch (error) {
     console.error('Error fetching profile:', error);
@@ -88,7 +79,12 @@ app.get('/api/profile', async (req, res) => {
 // Team routes
 app.get('/api/teams', async (req, res) => {
   try {
-    const teams = await supabaseStorage.getTeams();
+    const { data: teams, error } = await supabase
+      .from('teams')
+      .select('*');
+
+    if (error) throw error;
+
     res.json(teams);
   } catch (error) {
     console.error('Error fetching teams:', error);
@@ -98,12 +94,18 @@ app.get('/api/teams', async (req, res) => {
 
 app.get('/api/teams/:teamId', async (req, res) => {
   try {
-    const team = await supabaseStorage.getTeamById(req.params.teamId);
-    
+    const { data: team, error } = await supabase
+      .from('teams')
+      .select('*')
+      .eq('id', req.params.teamId)
+      .single();
+
+    if (error) throw error;
+
     if (!team) {
       return res.status(404).json({ error: 'Team not found' });
     }
-    
+
     res.json(team);
   } catch (error) {
     console.error('Error fetching team:', error);
@@ -111,5 +113,42 @@ app.get('/api/teams/:teamId', async (req, res) => {
   }
 });
 
+// Players routes
+app.get('/api/players', async (req, res) => {
+  try {
+    const { data: players, error } = await supabase
+      .from('players')
+      .select('*');
+
+    if (error) throw error;
+
+    res.json(players);
+  } catch (error) {
+    console.error('Error fetching players:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/players/:playerId', async (req, res) => {
+  try {
+    const { data: player, error } = await supabase
+      .from('players')
+      .select('*')
+      .eq('id', req.params.playerId)
+      .single();
+
+    if (error) throw error;
+
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+
+    res.json(player);
+  } catch (error) {
+    console.error('Error fetching player:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Export the Express app
-export default app;
+module.exports = app;
