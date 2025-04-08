@@ -1,7 +1,6 @@
 {
   "buildCommand": "npm install && npm run build:supabase",
   "outputDirectory": "dist",
-  "framework": "react",
   "functions": {
     "api/index.js": {
       "memory": 1024,
