@@ -505,10 +505,19 @@ export class SupabaseStorage {
       if (contributionError) throw contributionError;
 
       // Update the money pool total
+      const { data: currentPool } = await supabaseAdmin
+        .from('money_pools')
+        .select('total_amount')
+        .eq('id', contributionData.moneyPoolId)
+        .single();
+
+      const currentAmount = currentPool?.total_amount || '0';
+      const newAmount = (parseFloat(currentAmount) + parseFloat(contributionData.amount)).toString();
+
       const { error: poolError } = await supabaseAdmin
         .from('money_pools')
         .update({
-          total_amount: sql`${schema.moneyPools.totalAmount} + ${contributionData.amount}`
+          total_amount: newAmount
         })
         .eq('id', contributionData.moneyPoolId);
 
