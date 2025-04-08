@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/client/(.*)", "destination": "/dist/$1" }
+    { "source": "/", "destination": "/public/index.html" }
   ],
   "env": {
     "SUPABASE_URL": "https://nxrqxozgbjiegjqgjypa.supabase.co",
