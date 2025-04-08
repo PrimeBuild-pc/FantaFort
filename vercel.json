@@ -1,12 +1,12 @@
 {
   "functions": {
-    "api/vercel.js": {
+    "api/serverless.js": {
       "memory": 1024,
       "maxDuration": 10
     }
   },
   "rewrites": [
-    { "source": "/api", "destination": "/api/vercel.js" }
+    { "source": "/api", "destination": "/api/serverless.js" }
   ],
   "env": {
     "SUPABASE_URL": "https://nxrqxozgbjiegjqgjypa.supabase.co",
