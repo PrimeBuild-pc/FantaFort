@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm install && npm run build:supabase",
+  "buildCommand": "npm run build:supabase",
   "outputDirectory": "dist",
   "functions": {
     "api/index.js": {
@@ -19,6 +19,7 @@
     "PAYPAL_CLIENT_SECRET": "EC6FpAfnleFDuNPPhz6gOl1HfulB4W4gy-P6OfmMFK7M2BDyKMjb8AWHzGBwQs38kMyx86CDZ6UJ98Zu",
     "NODE_ENV": "production",
     "VITE_SUPABASE_URL": "https://nxrqxozgbjiegjqgjypa.supabase.co",
-    "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54cnF4b3pnYmppZWdqcWdqeXBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQxMDcyNTgsImV4cCI6MjA1OTY4MzI1OH0.se5REjhJrxPW_7hSKNvdeJ_IW09OPs1iTOrM8FKZ67s"
+    "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54cnF4b3pnYmppZWdqcWdqeXBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQxMDcyNTgsImV4cCI6MjA1OTY4MzI1OH0.se5REjhJrxPW_7hSKNvdeJ_IW09OPs1iTOrM8FKZ67s",
+    "VITE_PAYPAL_CLIENT_ID": "AYSq3RDGsmBLJE-otTkBtM-jBRd1TCQwFf9RGfwddNXWz0uFU9ztymylOhRS"
   }
 }
