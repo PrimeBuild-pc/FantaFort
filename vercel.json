@@ -1,13 +1,6 @@
 {
-  "version": 2,
-  "builds": [
-    { "src": "package.json", "use": "@vercel/static-build", "config": { "distDir": "dist" } },
-    { "src": "api/**/*.js", "use": "@vercel/node" }
-  ],
-  "routes": [
-    { "src": "/api/health", "dest": "/api/health.js" },
-    { "src": "/api/(.*)", "dest": "/api/serverless-api.js" },
-    { "src": "/(.*)", "dest": "/dist/$1" }
+  "rewrites": [
+    { "source": "/client/(.*)", "destination": "/dist/$1" }
   ],
   "env": {
     "SUPABASE_URL": "https://nxrqxozgbjiegjqgjypa.supabase.co",
