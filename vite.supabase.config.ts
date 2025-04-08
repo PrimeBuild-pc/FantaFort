@@ -13,6 +13,9 @@ export default defineConfig({
   build: {
     outDir: '../dist',
     emptyOutDir: true,
+    rollupOptions: {
+      input: path.resolve(__dirname, './client/index.html'),
+    },
   },
   define: {
     'process.env.VITE_SUPABASE_URL': JSON.stringify('https://nxrqxozgbjiegjqgjypa.supabase.co'),
