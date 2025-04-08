@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run build:supabase",
+  "buildCommand": "npm run build:simple",
   "outputDirectory": "dist",
   "functions": {
     "api/index.js": {
