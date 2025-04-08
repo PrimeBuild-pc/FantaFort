@@ -1,5 +1,5 @@
 // Simple API endpoint for Vercel deployment
-module.exports = (req, res) => {
+export default function handler(req, res) {
   res.json({
     message: 'FantaFort API is running',
     version: '1.0.0',
