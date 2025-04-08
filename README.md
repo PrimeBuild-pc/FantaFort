@@ -55,6 +55,16 @@ FantaFort brings the excitement of fantasy sports to the world of Fortnite. User
 
 ```
 /
+├── .github/               # GitHub configuration
+│   └── workflows/        # GitHub Actions workflows
+│
+├── api/                   # API endpoints for Vercel serverless functions
+│   ├── auth-simple.js      # Authentication API
+│   ├── team.js            # Team management API
+│   ├── prize-pool.js      # Prize pool API
+│   ├── health.js           # Health check API
+│   └── root.js            # Root API endpoint
+│
 ├── client/                # Frontend React application
 │   ├── src/
 │   │   ├── components/    # Reusable UI components
@@ -62,6 +72,12 @@ FantaFort brings the excitement of fantasy sports to the world of Fortnite. User
 │   │   ├── lib/           # Utility functions and types
 │   │   ├── pages/         # Application pages/routes
 │   │   └── assets/        # Static assets like images
+│
+├── pages/                 # Next.js pages for Vercel deployment
+│   ├── index.js           # Home page
+│   └── api/              # API routes
+│
+├── public/                # Static assets
 │
 ├── server/                # Backend Express application
 │   ├── auth.ts            # Authentication setup
@@ -75,6 +91,9 @@ FantaFort brings the excitement of fantasy sports to the world of Fortnite. User
 ├── shared/                # Shared code between client and server
 │   └── schema.ts          # Database schema and types
 │
+├── build.sh               # Build script for Vercel deployment
+├── vercel.json            # Vercel configuration
+├── next.config.js         # Next.js configuration
 └── drizzle.config.ts      # Drizzle ORM configuration
 ```
 
@@ -155,17 +174,43 @@ We welcome contributions to FantaFort! Here's how you can help:
 
 ## 📦 Deployment
 
-The application can be deployed to any Node.js hosting service:
+### Vercel Deployment
+
+The application is deployed on Vercel at [https://fantafort.vercel.app](https://fantafort.vercel.app).
+
+#### Manual Deployment
 
 1. Build the client:
 ```bash
-npm run build
+npm run build:supabase
 ```
 
-2. Start the production server:
+2. Deploy to Vercel:
 ```bash
-npm start
+vercel --prod
 ```
+
+### GitHub Actions Deployment
+
+This project uses GitHub Actions to automatically build and deploy the application to Vercel. To set up the GitHub Actions workflow, you need to add the following secrets to your GitHub repository:
+
+1. `VERCEL_TOKEN`: Your Vercel API token
+   - Get it from https://vercel.com/account/tokens
+
+2. `VERCEL_ORG_ID`: Your Vercel organization ID
+   - Value: `team_6SgG2NcJfWNAhGLsjKrbSY4W`
+
+3. `VERCEL_PROJECT_ID`: Your Vercel project ID
+   - Value: `prj_7gUIkdkxWgyQB3m3VRdjwAUIUR2N`
+
+4. `VITE_SUPABASE_URL`: Your Supabase URL
+   - Value: `https://nxrqxozgbjiegjqgjypa.supabase.co`
+
+5. `VITE_SUPABASE_ANON_KEY`: Your Supabase anonymous key
+   - Value: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54cnF4b3pnYmppZWdqcWdqeXBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQxMDcyNTgsImV4cCI6MjA1OTY4MzI1OH0.se5REjhJrxPW_7hSKNvdeJ_IW09OPs1iTOrM8FKZ67s`
+
+6. `VITE_PAYPAL_CLIENT_ID`: Your PayPal client ID
+   - Value: `AYSq3RDGsmBLJE-otTkBtM-jBRd1TCQwFf9RGfwddNXWz0uFU9ztymylOhRS`
 
 ---
 
