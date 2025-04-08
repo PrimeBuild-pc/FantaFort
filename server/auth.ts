@@ -5,6 +5,7 @@ import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
+import { supabaseStorage } from "./supabase-storage";
 import { User as SelectUser } from "@shared/schema";
 
 declare global {
@@ -34,7 +35,7 @@ export function setupAuth(app: Express) {
     secret: process.env.SESSION_SECRET || "fortnite-fantasy-session-secret-key",
     resave: false,
     saveUninitialized: false,
-    store: storage.sessionStore,
+    store: supabaseStorage.sessionStore, // Use Supabase session store
     cookie: {
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
       secure: process.env.NODE_ENV === "production",
@@ -51,51 +52,80 @@ export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
-        const user = await storage.getUserByUsername(username);
+        // Try Supabase storage first
+        let user = await supabaseStorage.getUserByUsername(username);
+
+        // Fall back to regular storage if user not found in Supabase
+        if (!user) {
+          user = await storage.getUserByUsername(username);
+        }
+
         if (!user) {
           return done(null, false, { message: "Incorrect username" });
         }
-        
+
         // First try secure password comparison
         if (await comparePasswords(password, user.password)) {
           return done(null, user);
         }
-        
+
         // Fallback to direct comparison for development (if password isn't hashed)
         if (user.password === password) {
           return done(null, user);
         }
-        
+
         return done(null, false, { message: "Incorrect password" });
       } catch (error) {
+        console.error('Authentication error:', error);
         return done(error);
       }
     }),
   );
 
   passport.serializeUser((user, done) => done(null, user.id));
-  
+
   passport.deserializeUser(async (id: number, done) => {
     try {
-      const user = await storage.getUser(id);
+      // Try Supabase storage first
+      let user = await supabaseStorage.getUserById(id);
+
+      // Fall back to regular storage if user not found in Supabase
+      if (!user) {
+        user = await storage.getUser(id);
+      }
+
+      if (!user) {
+        return done(null, false);
+      }
+
       done(null, user);
     } catch (error) {
+      console.error('Deserialize user error:', error);
       done(error);
     }
   });
 
   app.post("/api/register", async (req, res, next) => {
     try {
-      const existingUser = await storage.getUserByUsername(req.body.username);
+      // Check if user exists in either storage
+      let existingUser = await supabaseStorage.getUserByUsername(req.body.username);
+      if (!existingUser) {
+        existingUser = await storage.getUserByUsername(req.body.username);
+      }
+
       if (existingUser) {
         return res.status(400).json({ error: "Username already exists" });
       }
 
       // Hash the password for security
       const hashedPassword = await hashPassword(req.body.password);
-      const user = await storage.createUser({
+
+      // Create user in Supabase storage
+      const user = await supabaseStorage.createUser({
         ...req.body,
-        password: hashedPassword
+        password: hashedPassword,
+        coins: 1000, // Default starting coins
+        teamId: null
       });
 
       req.login(user, (err) => {
@@ -130,9 +160,9 @@ export function setupAuth(app: Express) {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "Not authenticated" });
     }
-    
+
     const user = req.user as SelectUser;
-    
+
     // Return a safe user object without the password
     res.json({
       id: user.id,
