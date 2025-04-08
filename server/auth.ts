@@ -6,6 +6,7 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { supabaseStorage } from "./supabase-storage";
+import { SupabaseDatabaseStorage } from "./supabase-db-storage";
 import { User as SelectUser } from "@shared/schema";
 
 declare global {
@@ -30,12 +31,15 @@ async function comparePasswords(supplied: string, stored: string) {
 }
 
 export function setupAuth(app: Express) {
+  // Create a database storage instance for session store
+  const dbStorage = new SupabaseDatabaseStorage();
+
   // Session settings with secure configuration
   const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET || "fortnite-fantasy-session-secret-key",
     resave: false,
     saveUninitialized: false,
-    store: supabaseStorage.sessionStore, // Use Supabase session store
+    store: dbStorage.sessionStore, // Use Supabase session store
     cookie: {
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
       secure: process.env.NODE_ENV === "production",
@@ -52,8 +56,8 @@ export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
-        // Try Supabase storage first
-        let user = await supabaseStorage.getUserByUsername(username);
+        // Try Supabase database storage
+        let user = await dbStorage.getUserByUsername(username);
 
         // Fall back to regular storage if user not found in Supabase
         if (!user) {
@@ -86,8 +90,8 @@ export function setupAuth(app: Express) {
 
   passport.deserializeUser(async (id: number, done) => {
     try {
-      // Try Supabase storage first
-      let user = await supabaseStorage.getUserById(id);
+      // Try Supabase database storage
+      let user = await dbStorage.getUserById(id);
 
       // Fall back to regular storage if user not found in Supabase
       if (!user) {
@@ -108,7 +112,7 @@ export function setupAuth(app: Express) {
   app.post("/api/register", async (req, res, next) => {
     try {
       // Check if user exists in either storage
-      let existingUser = await supabaseStorage.getUserByUsername(req.body.username);
+      let existingUser = await dbStorage.getUserByUsername(req.body.username);
       if (!existingUser) {
         existingUser = await storage.getUserByUsername(req.body.username);
       }
@@ -120,12 +124,15 @@ export function setupAuth(app: Express) {
       // Hash the password for security
       const hashedPassword = await hashPassword(req.body.password);
 
-      // Create user in Supabase storage
-      const user = await supabaseStorage.createUser({
-        ...req.body,
+      // Create user in Supabase database storage
+      const user = await dbStorage.createUser({
+        username: req.body.username,
         password: hashedPassword,
+        email: req.body.email || null,
         coins: 1000, // Default starting coins
-        teamId: null
+        teamId: null,
+        avatar: null,
+        isPublicProfile: false
       });
 
       req.login(user, (err) => {
