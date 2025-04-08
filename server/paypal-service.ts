@@ -1,6 +1,7 @@
 import paypal from '@paypal/checkout-server-sdk';
 import { v4 as uuidv4 } from 'uuid';
 import { supabaseStorage } from './supabase-storage';
+import { supabase } from './supabase';
 
 // PayPal client configuration
 const clientId = process.env.PAYPAL_CLIENT_ID || 'AYMphyqMo0Qsj1AzMz2e3PMnG_yYOA6la8XvaAOxCruGhPzSn2_1_xz7RZZKGKsHCAynBbGaZwnYWCDZ';
@@ -17,7 +18,7 @@ const client = new paypal.core.PayPalHttpClient(environment);
 export class PayPalService {
   /**
    * Create a PayPal order for depositing to a money pool
-   * 
+   *
    * @param userId User ID making the deposit
    * @param moneyPoolId Money pool ID
    * @param amount Amount to deposit
@@ -34,10 +35,10 @@ export class PayPalService {
       // Create a new order
       const request = new paypal.orders.OrdersCreateRequest();
       request.prefer('return=representation');
-      
+
       // Format amount with 2 decimal places
       const formattedAmount = amount.toFixed(2);
-      
+
       request.requestBody({
         intent: 'CAPTURE',
         purchase_units: [{
@@ -56,10 +57,10 @@ export class PayPalService {
           cancel_url: `${process.env.APP_URL || 'http://localhost:5000'}/api/paypal/cancel`
         }
       });
-      
+
       // Execute the request
       const response = await client.execute(request);
-      
+
       // Create a transaction record in the database
       const transactionId = uuidv4();
       await supabaseStorage.createPayPalTransaction({
@@ -72,7 +73,7 @@ export class PayPalService {
         status: 'PENDING',
         paypalResponse: response.result
       });
-      
+
       return {
         transactionId,
         orderId: response.result.id,
@@ -84,10 +85,10 @@ export class PayPalService {
       throw error;
     }
   }
-  
+
   /**
    * Capture a PayPal payment after user approval
-   * 
+   *
    * @param orderId PayPal order ID to capture
    * @returns Capture details
    */
@@ -96,44 +97,44 @@ export class PayPalService {
       // Create capture request
       const request = new paypal.orders.OrdersCaptureRequest(orderId);
       request.prefer('return=representation');
-      
+
       // Execute the request
       const response = await client.execute(request);
-      
+
       // Get the original order details
       const orderDetailsRequest = new paypal.orders.OrdersGetRequest(orderId);
       const orderDetails = await client.execute(orderDetailsRequest);
-      
+
       // Extract custom_id to get user and money pool info
       const customId = orderDetails.result.purchase_units[0].custom_id;
       const [userId, moneyPoolId, type] = customId.split(':');
-      
+
       // Get transaction from database
-      const { data: transactions } = await supabaseStorage.supabaseAdmin
+      const { data: transactions } = await supabase
         .from('paypal_transactions')
         .select('*')
         .eq('paypal_transaction_id', orderId)
         .limit(1);
-      
+
       if (!transactions || transactions.length === 0) {
         throw new Error('Transaction not found');
       }
-      
+
       const transaction = transactions[0];
-      
+
       // Update transaction status
       await supabaseStorage.updatePayPalTransactionStatus(
         transaction.id,
         'COMPLETED',
         new Date().toISOString()
       );
-      
+
       // If this is a deposit to a money pool, add the contribution
       if (type === 'deposit') {
         const contributionId = uuidv4();
         const amount = parseFloat(orderDetails.result.purchase_units[0].amount.value);
         const currency = orderDetails.result.purchase_units[0].amount.currency_code;
-        
+
         await supabaseStorage.addMoneyPoolContribution({
           id: contributionId,
           moneyPoolId,
@@ -142,7 +143,7 @@ export class PayPalService {
           currency,
           transactionId: transaction.id
         });
-        
+
         // Update contribution status
         await supabaseStorage.updateContributionStatus(
           contributionId,
@@ -150,7 +151,7 @@ export class PayPalService {
           new Date().toISOString()
         );
       }
-      
+
       return {
         captureId: response.result.id,
         status: response.result.status,
@@ -164,10 +165,10 @@ export class PayPalService {
       throw error;
     }
   }
-  
+
   /**
    * Create a PayPal payout to a winner
-   * 
+   *
    * @param userId User ID receiving the payout
    * @param email PayPal email of the recipient
    * @param amount Amount to pay out
@@ -185,10 +186,10 @@ export class PayPalService {
     try {
       // Create a unique batch ID
       const batchId = `PAYOUT_${uuidv4()}`;
-      
+
       // Format amount with 2 decimal places
       const formattedAmount = amount.toFixed(2);
-      
+
       // Create payout request
       const request = {
         sender_batch_header: {
@@ -207,7 +208,7 @@ export class PayPalService {
           sender_item_id: `PAYOUT_ITEM_${uuidv4()}`
         }]
       };
-      
+
       // Execute the payout
       const response = await fetch('https://api-m.sandbox.paypal.com/v1/payments/payouts', {
         method: 'POST',
@@ -217,13 +218,13 @@ export class PayPalService {
         },
         body: JSON.stringify(request)
       });
-      
+
       const result = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(`PayPal payout error: ${result.message || 'Unknown error'}`);
       }
-      
+
       // Create a transaction record in the database
       const transactionId = uuidv4();
       await supabaseStorage.createPayPalTransaction({
@@ -236,7 +237,7 @@ export class PayPalService {
         status: 'PROCESSING',
         paypalResponse: result
       });
-      
+
       return {
         transactionId,
         payoutBatchId: result.batch_header.payout_batch_id,
@@ -248,7 +249,7 @@ export class PayPalService {
       throw error;
     }
   }
-  
+
   /**
    * Get PayPal access token
    * @returns Access token
@@ -256,7 +257,7 @@ export class PayPalService {
   private async getAccessToken() {
     try {
       const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-      
+
       const response = await fetch('https://api-m.sandbox.paypal.com/v1/oauth2/token', {
         method: 'POST',
         headers: {
@@ -265,23 +266,23 @@ export class PayPalService {
         },
         body: 'grant_type=client_credentials'
       });
-      
+
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(`PayPal auth error: ${data.error_description || 'Unknown error'}`);
       }
-      
+
       return data.access_token;
     } catch (error) {
       console.error('Error getting PayPal access token:', error);
       throw error;
     }
   }
-  
+
   /**
    * Check payout status
-   * 
+   *
    * @param payoutBatchId Payout batch ID to check
    * @returns Payout status
    */
@@ -294,23 +295,23 @@ export class PayPalService {
           'Authorization': `Bearer ${await this.getAccessToken()}`
         }
       });
-      
+
       const result = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(`PayPal payout status error: ${result.message || 'Unknown error'}`);
       }
-      
+
       // Get transaction from database
-      const { data: transactions } = await supabaseStorage.supabaseAdmin
+      const { data: transactions } = await supabase
         .from('paypal_transactions')
         .select('*')
         .eq('paypal_transaction_id', payoutBatchId)
         .limit(1);
-      
+
       if (transactions && transactions.length > 0) {
         const transaction = transactions[0];
-        
+
         // Update transaction status
         if (result.batch_header.batch_status === 'SUCCESS') {
           await supabaseStorage.updatePayPalTransactionStatus(
@@ -325,7 +326,7 @@ export class PayPalService {
           );
         }
       }
-      
+
       return {
         status: result.batch_header.batch_status,
         items: result.items.map((item: any) => ({

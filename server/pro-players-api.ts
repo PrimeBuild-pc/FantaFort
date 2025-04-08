@@ -1,27 +1,16 @@
 import axios from 'axios';
-import { calculatePlayerScore, rankPlayers, updatePlayerRankings, getTopPlayers } from './scoring';
+import { calculatePlayerScore, rankPlayers, updatePlayerRankings, getTopPlayers, ScoredPlayer, PlayerStats } from './scoring';
 import { getWebSocketManager } from './websocket';
 
 // Interface for pro player data
-interface ProPlayer {
+interface ProPlayer extends ScoredPlayer {
   id: string;
   name: string;
   team: string;
   avatar?: string;
-  placements: {
-    tournamentId: string;
-    tournamentName: string;
-    placement: number;
-    date: string;
-  }[];
-  prPoints: number;
-  earnings: number;
   eliminations: number;
   winRate: number;
   kd: number;
-  score?: number;
-  rank?: number;
-  previousRank?: number;
 }
 
 // Cache for pro player data
@@ -42,22 +31,22 @@ export async function fetchProPlayers(): Promise<ProPlayer[]> {
     }
 
     const apiKey = process.env.FORTNITE_TRACKER_API_KEY || '';
-    
+
     if (!apiKey) {
       console.error('FORTNITE_TRACKER_API_KEY is not set in environment variables');
       throw new Error('API key not configured');
     }
-    
+
     // In a real implementation, this would fetch from the Fortnite Tracker API
     // For now, we'll use a simplified approach to demonstrate the concept
-    
+
     // Fetch top players from the API
     const response = await axios.get('https://fortnitetracker.com/api/v1/powerrankings/top500', {
       headers: {
         'TRN-Api-Key': apiKey
       }
     });
-    
+
     // Process the response data
     const players = response.data.map((player: any) => ({
       id: player.accountId,
@@ -69,26 +58,28 @@ export async function fetchProPlayers(): Promise<ProPlayer[]> {
       earnings: player.earnings || 0,
       eliminations: player.eliminations || 0,
       winRate: player.winRate || 0,
-      kd: player.kd || 0
+      kd: player.kd || 0,
+      playerId: player.accountId,
+      playerName: player.name
     }));
-    
+
     // Calculate scores and rankings
     const rankedPlayers = rankPlayers(players);
-    
+
     // Update cache
     proPlayersCache = rankedPlayers;
     lastUpdated = new Date();
-    
+
     return rankedPlayers;
   } catch (error) {
     console.error('Error fetching pro players:', error);
-    
+
     // If we have cached data, return it even if it's stale
     if (proPlayersCache.length > 0) {
       console.log('Using stale cached pro player data due to API error');
       return proPlayersCache;
     }
-    
+
     // If we have no cached data, return sample data
     return getSampleProPlayers();
   }
@@ -112,22 +103,22 @@ export async function updateProPlayerRankings(): Promise<ProPlayer[]> {
   try {
     // Store previous rankings
     const previousRankings = [...proPlayersCache];
-    
+
     // Fetch fresh data
     const apiKey = process.env.FORTNITE_TRACKER_API_KEY || '';
-    
+
     if (!apiKey) {
       console.error('FORTNITE_TRACKER_API_KEY is not set in environment variables');
       throw new Error('API key not configured');
     }
-    
+
     // Fetch updated data from the API
     const response = await axios.get('https://fortnitetracker.com/api/v1/powerrankings/top500', {
       headers: {
         'TRN-Api-Key': apiKey
       }
     });
-    
+
     // Process the response data
     const players = response.data.map((player: any) => ({
       id: player.accountId,
@@ -139,16 +130,18 @@ export async function updateProPlayerRankings(): Promise<ProPlayer[]> {
       earnings: player.earnings || 0,
       eliminations: player.eliminations || 0,
       winRate: player.winRate || 0,
-      kd: player.kd || 0
+      kd: player.kd || 0,
+      playerId: player.accountId,
+      playerName: player.name
     }));
-    
+
     // Update rankings with previous rank information
     const updatedRankings = updatePlayerRankings(players, previousRankings);
-    
+
     // Update cache
     proPlayersCache = updatedRankings;
     lastUpdated = new Date();
-    
+
     // Notify clients about ranking changes via WebSocket
     const websocketManager = getWebSocketManager();
     if (websocketManager) {
@@ -164,7 +157,7 @@ export async function updateProPlayerRankings(): Promise<ProPlayer[]> {
         }
       });
     }
-    
+
     return updatedRankings;
   } catch (error) {
     console.error('Error updating pro player rankings:', error);
@@ -191,7 +184,13 @@ function getSampleProPlayers(): ProPlayer[] {
       earnings: 750000,
       eliminations: 450,
       winRate: 15,
-      kd: 4.5
+      kd: 4.5,
+      playerId: 'player1',
+      playerName: 'Bugha',
+      score: 0,
+      placementScore: 0,
+      prScore: 0,
+      earningsScore: 0
     },
     {
       id: 'player2',
@@ -206,7 +205,13 @@ function getSampleProPlayers(): ProPlayer[] {
       earnings: 680000,
       eliminations: 420,
       winRate: 14,
-      kd: 4.2
+      kd: 4.2,
+      playerId: 'player2',
+      playerName: 'MrSavage',
+      score: 0,
+      placementScore: 0,
+      prScore: 0,
+      earningsScore: 0
     },
     {
       id: 'player3',
@@ -221,7 +226,13 @@ function getSampleProPlayers(): ProPlayer[] {
       earnings: 620000,
       eliminations: 400,
       winRate: 13,
-      kd: 4.0
+      kd: 4.0,
+      playerId: 'player3',
+      playerName: 'Mongraal',
+      score: 0,
+      placementScore: 0,
+      prScore: 0,
+      earningsScore: 0
     },
     {
       id: 'player4',
@@ -236,7 +247,13 @@ function getSampleProPlayers(): ProPlayer[] {
       earnings: 580000,
       eliminations: 380,
       winRate: 12,
-      kd: 3.8
+      kd: 3.8,
+      playerId: 'player4',
+      playerName: 'Benjyfishy',
+      score: 0,
+      placementScore: 0,
+      prScore: 0,
+      earningsScore: 0
     },
     {
       id: 'player5',
@@ -251,10 +268,16 @@ function getSampleProPlayers(): ProPlayer[] {
       earnings: 550000,
       eliminations: 360,
       winRate: 11,
-      kd: 3.6
+      kd: 3.6,
+      playerId: 'player5',
+      playerName: 'Clix',
+      score: 0,
+      placementScore: 0,
+      prScore: 0,
+      earningsScore: 0
     }
   ];
-  
+
   // Calculate scores and rankings
   return rankPlayers(samplePlayers);
 }
@@ -268,7 +291,7 @@ export function scheduleProPlayerUpdates(intervalMs: number = UPDATE_INTERVAL): 
   updateProPlayerRankings().then(() => {
     console.log('Initial pro player rankings updated');
   });
-  
+
   // Schedule regular updates
   setInterval(() => {
     updateProPlayerRankings().then(() => {

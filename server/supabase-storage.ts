@@ -505,10 +505,12 @@ export class SupabaseStorage {
       if (contributionError) throw contributionError;
 
       // Update the money pool total
-      const { error: poolError } = await supabaseAdmin.rpc('update_money_pool_amount', {
-        pool_id: contributionData.moneyPoolId,
-        amount_to_add: contributionData.amount
-      });
+      const { error: poolError } = await supabaseAdmin
+        .from('money_pools')
+        .update({
+          total_amount: sql`${schema.moneyPools.totalAmount} + ${contributionData.amount}`
+        })
+        .eq('id', contributionData.moneyPoolId);
 
       if (poolError) throw poolError;
 

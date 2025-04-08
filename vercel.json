@@ -1,34 +1,17 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "client/package.json",
-      "use": "@vercel/static-build",
-      "config": { "distDir": "build" }
-    },
-    {
-      "src": "server/index.ts",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "server/index.ts"
-    },
-    {
-      "src": "/ws",
-      "dest": "server/index.ts"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "client/build/$1"
-    }
+  "buildCommand": "cd client && npm install && npm run build",
+  "outputDirectory": "client/build",
+  "framework": "create-react-app",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/ws", "destination": "/api" }
   ],
   "env": {
     "SUPABASE_URL": "https://nxrqxozgbjiegjqgjypa.supabase.co",
     "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54cnF4b3pnYmppZWdqcWdqeXBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQxMDcyNTgsImV4cCI6MjA1OTY4MzI1OH0.se5REjhJrxPW_7hSKNvdeJ_IW09OPs1iTOrM8FKZ67s",
+    "SUPABASE_SERVICE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54cnF4b3pnYmppZWdqcWdqeXBhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDEwNzI1OCwiZXhwIjoyMDU5NjgzMjU4fQ.y2HCPPpdQpXD87qRsOkkmDuRm4PKro_a5b1BWw78qhc",
     "PAYPAL_CLIENT_ID": "AYMphyqMo0Qsj1AzMz2e3PMnG_yYOA6la8XvaAOxCruGhPzSn2_1_xz7RZZKGKsHCAynBbGaZwnYWCDZ",
+    "PAYPAL_CLIENT_SECRET": "EC6FpAfnleFDuNPPhz6gOl1HfulB4W4gy-P6OfmMFK7M2BDyKMjb8AWHzGBwQs38kMyx86CDZ6UJ98Zu",
     "NODE_ENV": "production"
   }
 }
