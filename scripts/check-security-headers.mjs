@@ -8,10 +8,12 @@ const headers = Object.fromEntries(catchAll.headers.map(({ key, value }) => [key
 const enforced = headers['content-security-policy'];
 const reportOnly = headers['content-security-policy-report-only'];
 for (const value of [enforced, reportOnly]) {
-  assert.ok(value.includes("default-src 'self'"));
-  assert.ok(value.includes("script-src-attr 'none'"));
-  assert.ok(value.includes('https://challenges.cloudflare.com'));
-  assert.ok(!value.includes('*.supabase.co'));
+  const directives = Object.fromEntries(value.split(';').map(part => part.trim().split(/\s+/)).filter(parts => parts[0]).map(([name, ...sources]) => [name, new Set(sources)]));
+  assert.ok(directives['default-src'].has("'self'"));
+  assert.deepEqual([...directives['script-src-attr']], ["'none'"]);
+  assert.ok(directives['script-src'].has('https://challenges.cloudflare.com'));
+  assert.ok(directives['frame-src'].has('https://challenges.cloudflare.com'));
+  assert.ok(!directives['connect-src'].has('https://*.supabase.co'));
 }
 assert.match(enforced, /script-src [^;]*'unsafe-inline'/);
 assert.match(enforced, /style-src 'self' https:\/\/fonts\.googleapis\.com;/);
