@@ -14,5 +14,11 @@ assert.equal(isEmailSendRateLimit({ status: 400, code: 'invalid_credentials' }),
 const authPage = await readFile('src/app/auth/page.tsx', 'utf8');
 assert.match(authPage, /emailRedirectTo:`\$\{window\.location\.origin\}\/auth`/);
 assert.match(authPage, /params\.get\('mode'\) === 'signup'/);
-assert.match(authPage, /redirectTo: `\$\{window\.location\.origin\}\/auth\?reset=1`/);
+assert.match(authPage, /redirectTo:`\$\{window\.location\.origin\}\/auth\?reset=1`/);
+assert.match(authPage, /captchaToken:consumeCaptcha\(\)/);
+assert.match(authPage, /signInWithPassword\(\{ email, password, options:\{ captchaToken:token \} \}\)/);
+assert.match(authPage, /NEXT_PUBLIC_TURNSTILE_SITE_KEY/);
+const turnstile = await readFile('src/components/Turnstile.tsx', 'utf8');
+assert.match(turnstile, /challenges\.cloudflare\.com\/turnstile/);
+assert.match(turnstile, /'expired-callback'/);
 console.log('Auth checks passed.');

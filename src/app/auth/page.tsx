@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/context/LocaleContext';
 import { Locale } from '@/lib/i18n';
 import { LEGAL_VERSION } from '@/lib/legal';
+import { Turnstile } from '@/components/Turnstile';
 
 type Mode = 'signin' | 'signup' | 'forgot' | 'reset';
 const legalCopy:Record<Locale,{age:string;agree:string;required:string}>={
@@ -29,6 +30,8 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [pending, setPending] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaVersion, setCaptchaVersion] = useState(0);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [legalAccepted, setLegalAccepted] = useState(false);
 
@@ -46,13 +49,19 @@ export default function AuthPage() {
     return () => data.subscription.unsubscribe();
   }, [router]);
 
+  const resetCaptcha = () => { setCaptchaToken(null); setCaptchaVersion(value => value + 1); };
+  const changeMode = (nextMode:Mode) => { setMode(nextMode); setMessage(''); resetCaptcha(); };
+  const consumeCaptcha = () => { const token = captchaToken || undefined; resetCaptcha(); return token; };
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!supabase) return;
     setPending(true); setMessage('');
 
     if (mode === 'forgot') {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/auth?reset=1` });
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo:`${window.location.origin}/auth?reset=1`, captchaToken:consumeCaptcha(),
+      });
       setPending(false); setMessage(isEmailSendRateLimit(error) ? t('emailRecentlySent') : error?.message || t('resetEmailSent')); return;
     }
     if (mode === 'signup' && (!ageConfirmed || !legalAccepted)) {
@@ -70,9 +79,10 @@ export default function AuthPage() {
     if (mode === 'signup' && !/^[A-Za-z0-9_.-]{3,30}$/.test(username)) {
       setPending(false); setMessage(t('invalidUsername')); return;
     }
+    const token = consumeCaptcha();
     const result = mode === 'signup'
-      ? await supabase.auth.signUp({ email, password, options: { emailRedirectTo:`${window.location.origin}/auth`, data: { username, locale, age_confirmed:true, legal_accepted_at:new Date().toISOString(), terms_version:LEGAL_VERSION, privacy_version:LEGAL_VERSION } } })
-      : await supabase.auth.signInWithPassword({ email, password });
+      ? await supabase.auth.signUp({ email, password, options: { captchaToken:token, emailRedirectTo:`${window.location.origin}/auth`, data: { username, locale, age_confirmed:true, legal_accepted_at:new Date().toISOString(), terms_version:LEGAL_VERSION, privacy_version:LEGAL_VERSION } } })
+      : await supabase.auth.signInWithPassword({ email, password, options:{ captchaToken:token } });
     setPending(false);
     if (result.error) return setMessage(mode === 'signup' && isEmailSendRateLimit(result.error) ? t('emailRecentlySent') : result.error.message);
     if (mode === 'signup' && !result.data.session) return setMessage(t('confirmEmail'));
@@ -89,9 +99,10 @@ export default function AuthPage() {
       {mode !== 'reset' && <label>{t('email')}<input type="email" value={email} onChange={event => setEmail(event.target.value)} required maxLength={254} autoComplete="email" /></label>}
       {mode !== 'forgot' && <label>{mode === 'reset' ? t('newPassword') : t('password')}<input type="password" value={password} onChange={event => setPassword(event.target.value)} required minLength={mode === 'signin' ? 8 : 10} maxLength={128} autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} />{mode !== 'signin' && <small>{t('passwordRules')}</small>}</label>}
       {mode === 'signup' && <div className="legal-consent"><label className="checkbox-label"><input type="checkbox" checked={ageConfirmed} onChange={event=>setAgeConfirmed(event.target.checked)} required />{legalCopy[locale].age}</label><label className="checkbox-label"><input type="checkbox" checked={legalAccepted} onChange={event=>setLegalAccepted(event.target.checked)} required /><span>{legalCopy[locale].agree} <Link href="/terms" target="_blank">Terms</Link> · <Link href="/privacy" target="_blank">Privacy</Link></span></label></div>}
+      {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && mode !== 'reset' && <Turnstile key={captchaVersion} siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} onToken={setCaptchaToken} />}
       {message && <p className="notice" role="alert">{message}</p>}
-      <button className="epic-button" disabled={pending}>{pending ? t('wait') : title}</button>
-      {mode === 'signin' ? <><button className="link-button" type="button" onClick={() => { setMode('forgot'); setMessage(''); }}>{t('forgotPassword')}</button><button className="link-button" type="button" onClick={() => { setMode('signup'); setMessage(''); }}>{t('needAccount')}</button></> : <button className="link-button" type="button" onClick={() => { setMode('signin'); setMessage(''); }}>{t('backToLogin')}</button>}
+      <button className="epic-button" disabled={pending || Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && mode !== 'reset' && !captchaToken)}>{pending ? t('wait') : title}</button>
+      {mode === 'signin' ? <><button className="link-button" type="button" onClick={() => changeMode('forgot')}>{t('forgotPassword')}</button><button className="link-button" type="button" onClick={() => changeMode('signup')}>{t('needAccount')}</button></> : <button className="link-button" type="button" onClick={() => changeMode('signin')}>{t('backToLogin')}</button>}
     </form>
   </main>;
 }
