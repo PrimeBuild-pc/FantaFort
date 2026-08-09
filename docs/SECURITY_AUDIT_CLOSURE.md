@@ -43,6 +43,7 @@ The current Strix source+staging run was attempted in the authorized non-destruc
 - Security tests do not upload tokens, credentials, screenshots, raw database payloads or PII.
 - Audit and wallet ledgers remain append-only; cleanup uses suspension/ban and removes only transient rows.
 - The ignored stale Vercel production environment export containing obsolete privileged variables was removed from the workstation.
+- The local backup `age` identity had inherited read access for the sandbox-users group; its ACL was corrected to the operator, SYSTEM and Administrators only.
 
 ## Historical credentials
 
