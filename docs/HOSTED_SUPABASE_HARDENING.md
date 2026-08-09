@@ -23,23 +23,24 @@ Hosted Auth rate limits are unchanged because they already fit a private alpha: 
 
 Both projects use complete custom SMTP configurations. Branded confirmation and recovery subjects/templates are synchronized from `supabase/templates`; configuration was validated without exposing credentials, and nonexistent-user recovery requests returned success without generating user data.
 
-## CAPTCHA rollout
+## CAPTCHA
 
-The auth page supports Cloudflare Turnstile for login, signup and recovery through `NEXT_PUBLIC_TURNSTILE_SITE_KEY`. The token is consumed once and passed to Supabase as `captchaToken`; expired, failed and consumed widgets reset. CSP permits only Cloudflare's Turnstile origin.
-
-Keep hosted CAPTCHA disabled until the branch containing this support is deployed and the matching site key exists in Vercel. Roll out staging first, test all three flows, then repeat in production. The Turnstile secret belongs only in Supabase Auth Bot Protection, never Vercel or the repository.
+Cloudflare Turnstile is enabled on both hosted projects for login, signup and recovery. The frontend consumes each token once and passes it to Supabase as `captchaToken`; expired, failed and consumed widgets reset. Browser retests confirmed accepted challenges for staging login/signup/recovery and production login/recovery. The Turnstile secret remains only in Supabase Auth Bot Protection, never Vercel or the repository.
 
 ## Database transport and network
 
-- Staging SSL enforcement: enabled and tested through CLI, Data API and the deployed app.
-- Production SSL enforcement: pending a maintenance window because Supabase documents a fast database reboot when this setting changes.
-- Network restrictions: open IPv4/IPv6. Vercel has no direct PostgreSQL connection, but Supabase CLI administration currently comes from a workstation without a guaranteed static egress CIDR. Do not invent an allowlist that can block migrations or emergency access.
+- SSL enforcement is enabled on staging and production. Production completed the documented fast reboot and passed the post-change app, Auth/Data API, CLI, lint and log checks (`POST-SSL: OK`).
+- **Deferred non-blocking:** DB Network Restrictions remain open because the workstation and GitHub-hosted runners have no reliable static egress CIDRs. Applying an invented allowlist would create a lockout risk. Revisit only when static egress exists.
 
 ## Database posture
 
 Migration `202608090003_security_definer_execution_acl.sql` removes default `PUBLIC`/`anon` execution from all `SECURITY DEFINER` functions, grants service-role access explicitly, and restores only the RPC entry points required by the app. Hosted Security Advisor anonymous warnings dropped from 82 to one intentional PostgREST pre-request hook. Authenticated warnings represent reviewed application RPC entry points with internal authorization checks. Seven `RLS Enabled No Policy` notices are intentional deny-by-default/service-only tables.
 
 Admin mutations remain disabled in Vercel and in `public.admin_runtime_config` on both databases.
+
+## Accepted Free-plan residual
+
+Supabase Leaked Password Protection is unavailable on the Free plan. This is an accepted residual, not a blocking finding. Compensating controls are a 10-character mixed-character password policy, email confirmation, Turnstile on all password-entry/recovery flows, Auth rate limits, refresh-token rotation, TOTP/AAL2 for administration and generic recovery responses. No paid upgrade is required for closure.
 
 ## Backups
 

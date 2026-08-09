@@ -12,16 +12,18 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "check:api": "node scripts/check-fortnite.mjs",
+    "check:api": "node --experimental-strip-types scripts/check-fortnite.mjs",
     "check:api-bounds": "node --experimental-strip-types scripts/check-api-bounds.mjs",
     "check:db": "node --env-file-if-exists=.env.local scripts/check-social.mjs",
     "check:auth": "node --experimental-strip-types scripts/check-auth-redirect.mjs",
     "check:admin": "node scripts/check-admin-security.mjs && node --experimental-strip-types scripts/check-admin-config.mjs && node --experimental-strip-types scripts/check-admin-jwt.mjs",
     "check:client-secrets": "node scripts/check-client-secrets.mjs",
+    "check:headers": "node --experimental-strip-types scripts/check-security-headers.mjs",
+    "check:staging-security": "node --env-file=.env.staging.local scripts/check-staging-security.mjs",
     "check:seo": "node scripts/check-seo.mjs",
-    "sync:players": "node --env-file-if-exists=.env.local scripts/sync-player-pool.mjs --full",
+    "sync:players": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/sync-player-pool.mjs --full",
     "import:results": "node --env-file-if-exists=.env.local scripts/import-results.mjs",
-    "sync:fortnite": "node --env-file-if-exists=.env.local scripts/sync-player-pool.mjs && node --env-file-if-exists=.env.local scripts/sync-fortnite.mjs"
+    "sync:fortnite": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/sync-player-pool.mjs && node --experimental-strip-types --env-file-if-exists=.env.local scripts/sync-fortnite.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.111.0",
