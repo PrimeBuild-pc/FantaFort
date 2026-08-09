@@ -1,0 +1,61 @@
+name: Encrypted database backup
+
+on:
+  push:
+    branches: [revival-next]
+    paths: [.github/workflows/backup-database.yml]
+  schedule:
+    - cron: '17 2 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: encrypted-database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Validate backup configuration
+        run: test -n "$SUPABASE_ACCESS_TOKEN" && test -n "$BACKUP_AGE_RECIPIENT"
+      - name: Install age
+        run: sudo apt-get update -qq && sudo apt-get install -y age
+      - name: Dump and encrypt staging then production
+        shell: bash
+        run: |
+          set -euo pipefail
+          plain="$RUNNER_TEMP/plain"
+          encrypted="$RUNNER_TEMP/encrypted"
+          mkdir -m 700 "$plain" "$encrypted"
+          trap 'rm -rf "$plain"' EXIT
+
+          while read -r environment ref; do
+            target="$plain/$environment"
+            mkdir -m 700 "$target"
+            npx --yes supabase@2.113.0 link --project-ref "$ref" --yes >/dev/null
+            npx --yes supabase@2.113.0 db dump --linked --role-only --file "$target/roles.sql" >/dev/null
+            npx --yes supabase@2.113.0 db dump --linked --file "$target/schema.sql" >/dev/null
+            npx --yes supabase@2.113.0 db dump --linked --data-only --use-copy --file "$target/data.sql" >/dev/null
+            tar -C "$plain" -czf - "$environment" | age -r "$BACKUP_AGE_RECIPIENT" -o "$encrypted/$environment-${GITHUB_RUN_ID}.tar.gz.age"
+            rm -rf "$target"
+          done <<'PROJECTS'
+          staging ibatqfmefkekbsvuterp
+          production ytbkcdwpjnqqeqjmulyl
+          PROJECTS
+
+          (cd "$encrypted" && sha256sum -- ./*.age > SHA256SUMS)
+      - name: Upload encrypted backups
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: encrypted-database-backups-${{ github.run_id }}
+          path: ${{ runner.temp }}/encrypted/
+          retention-days: 14
+          if-no-files-found: error
