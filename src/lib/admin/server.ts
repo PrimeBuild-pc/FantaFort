@@ -2,6 +2,7 @@ import 'server-only';
 
 import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { adminRuntimeConfig } from './config';
 import { getVerifiedAal, type AdminAal } from './jwt';
 
 type AdminRequest = { client: SupabaseClient; user: User; accessToken: string; currentAal: AdminAal };
@@ -39,10 +40,9 @@ export async function authorizeAdmin(request: NextRequest, options: AdminAuthori
   return { client, user: data.user, accessToken, currentAal };
 }
 
-export const adminMfaEnforcementEnabled = () =>
-  !(process.env.NODE_ENV !== 'production' && process.env.ADMIN_MFA_ENFORCEMENT_ENABLED === 'false');
-
-export const adminMutationsEnabled = () => process.env.ADMIN_MUTATIONS_ENABLED === 'true';
+export const adminMfaEnforcementEnabled = () => adminRuntimeConfig().mfaEnforcementEnabled;
+export const adminMutationsEnabled = () => adminRuntimeConfig().mutationsEnabled;
+export const adminAnonymizationEnabled = () => adminRuntimeConfig().anonymizationEnabled;
 
 export function rejectCrossOriginMutation(request: NextRequest) {
   const origin = request.headers.get('origin');

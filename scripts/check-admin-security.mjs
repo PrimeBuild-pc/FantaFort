@@ -13,6 +13,9 @@ for (const file of sourceFiles) {
     && (content.includes('SUPABASE_SERVICE_ROLE_KEY') || content.includes('SUPABASE_SECRET_KEY'))) {
     throw new Error('Server Supabase key reference found in client code');
   }
+  if (/NEXT_PUBLIC_[A-Z0-9_]*(?:SECRET|SERVICE|PASSWORD|DATABASE)/.test(content)) {
+    throw new Error('Privileged environment variable uses a public prefix');
+  }
 }
 
 const adminPage = await readFile('src/app/admin/page.tsx', 'utf8');
@@ -22,12 +25,16 @@ for (const expected of ['auth.mfa.enroll', 'auth.mfa.challengeAndVerify', "curre
 }
 
 const server = await readFile('src/lib/admin/server.ts', 'utf8');
-for (const expected of ['getVerifiedAal', 'auth.getUser', "'authorize_admin_step_up_request'", "ADMIN_MUTATIONS_ENABLED === 'true'", "NODE_ENV !== 'production'", "ADMIN_MFA_ENFORCEMENT_ENABLED === 'false'", 'origin !== request.nextUrl.origin']) {
+for (const expected of ['getVerifiedAal', 'auth.getUser', "'authorize_admin_step_up_request'", 'adminRuntimeConfig().mfaEnforcementEnabled', 'adminRuntimeConfig().mutationsEnabled', 'origin !== request.nextUrl.origin']) {
   if (!server.includes(expected)) throw new Error('Admin server guard is incomplete');
 }
+const config = await readFile('src/lib/admin/config.ts', 'utf8');
+for (const expected of ["value === 'true'", "env.NODE_ENV === 'production'", "env.ADMIN_MFA_ENFORCEMENT_ENABLED !== 'false'", 'mutationsEnabled && exactlyTrue(env.ADMIN_ANONYMIZATION_ENABLED)', 'serverKeyConfigured']) {
+  if (!config.includes(expected)) throw new Error('Admin environment parser is incomplete');
+}
 const service = await readFile('src/lib/admin/service.ts', 'utf8');
-for (const expected of ['recordAdminFailure', "outcome:'failed'", 'error_code:errorCode']) {
-  if (!service.includes(expected)) throw new Error('External admin failure audit is incomplete');
+for (const expected of ['adminRuntimeConfig', 'if (!config.mutationsEnabled) return null', 'recordAdminFailure', "outcome:'failed'", 'error_code:errorCode']) {
+  if (!service.includes(expected)) throw new Error('Privileged admin client guard is incomplete');
 }
 
 const recoveryRoute = await readFile('src/app/api/admin/users/[id]/recovery/route.ts', 'utf8');
@@ -76,7 +83,7 @@ if (!walletRoute.includes('> 10000') || !walletRoute.includes('payloadFingerprin
   throw new Error('Admin wallet route limits are incomplete');
 }
 const anonymizationRoute = await readFile('src/app/api/admin/users/[id]/anonymize/route.ts', 'utf8');
-for (const expected of ["ADMIN_ANONYMIZATION_ENABLED !== 'true'", "currentAal !== 'aal2'", 'impactFingerprint', 'confirmed_target_id',
+for (const expected of ['!adminAnonymizationEnabled()', "currentAal !== 'aal2'", 'impactFingerprint', 'confirmed_target_id',
   'recordAdminFailure', 'admin_step_up_grants', 'getClaims(admin.accessToken)', 'declaredProviders', 'clearedMetadata']) {
   if (!anonymizationRoute.includes(expected)) throw new Error('Admin anonymization route is incomplete');
 }
@@ -127,6 +134,11 @@ for (const expected of [
   'sandbox_top_up_ledger', 'Daily sandbox top-up limit reached', 'drop function public.mock_top_up(integer)',
 ]) {
   if (!remediation.includes(expected)) throw new Error('Security audit remediation migration is incomplete');
+}
+const runtimeHardening = await readFile('supabase/migrations/202608090001_admin_runtime_fail_closed.sql', 'utf8');
+for (const expected of ['mutations_enabled boolean not null default false', 'revoke all on table public.admin_runtime_config from public, anon, authenticated',
+  'delete from public.admin_step_up_grants', 'before insert on public.admin_step_up_grants', "raise insufficient_privilege using message = 'Admin mutations disabled'"]) {
+  if (!runtimeHardening.includes(expected)) throw new Error('Database admin mutation kill switch is incomplete');
 }
 
 // Keep this dependency-free check runnable in CI and isolated from any Supabase project.
