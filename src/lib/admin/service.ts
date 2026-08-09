@@ -2,8 +2,11 @@ import 'server-only';
 
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
+import { adminRuntimeConfig } from './config';
 
 export function adminServiceClient() {
+  const config = adminRuntimeConfig();
+  if (!config.mutationsEnabled) return null;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !serviceKey) return null;

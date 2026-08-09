@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminMfaEnforcementEnabled, adminMutationsEnabled, authorizeAdmin } from '@/lib/admin/server';
+import { adminAnonymizationEnabled, adminMfaEnforcementEnabled, adminMutationsEnabled, authorizeAdmin } from '@/lib/admin/server';
 
 export async function GET(request: NextRequest) {
   const admin = await authorizeAdmin(request, { allowAal1:true });
@@ -11,6 +11,6 @@ export async function GET(request: NextRequest) {
     mfaEnforcementEnabled: adminMfaEnforcementEnabled(),
     currentAal: admin.currentAal,
     nextAal,
-    anonymizationEnabled: adminMutationsEnabled() && process.env.ADMIN_ANONYMIZATION_ENABLED === 'true',
+    anonymizationEnabled: adminAnonymizationEnabled(),
   });
 }

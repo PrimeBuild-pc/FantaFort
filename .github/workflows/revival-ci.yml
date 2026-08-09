@@ -27,6 +27,7 @@ jobs:
       - run: npm audit --audit-level=high
       - run: npm run lint
       - run: npm run build
+      - run: npm run check:client-secrets
       - run: npm run check:api
       - run: npm run check:api-bounds
       - run: npm run check:auth

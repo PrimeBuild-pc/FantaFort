@@ -12,9 +12,9 @@ Prima di qualsiasi reset verificare manualmente tutti i valori:
 - hostname atteso corrente: `ibatqfmefkekbsvuterp.supabase.co`;
 - il ref non deve essere quello production `ytbk…mulyl`;
 - il worktree deve essere sul commit staging approvato;
-- `ADMIN_MFA_ENFORCEMENT_ENABLED`, `ADMIN_MUTATIONS_ENABLED` e
-  `ADMIN_ANONYMIZATION_ENABLED` devono essere `false` su Vercel staging;
-- `SUPABASE_SERVICE_ROLE_KEY` non deve essere presente nel runtime Vercel.
+- `ADMIN_MFA_ENFORCEMENT_ENABLED=true`, `ADMIN_MUTATIONS_ENABLED=false` e
+  `ADMIN_ANONYMIZATION_ENABLED=false` su Vercel staging;
+- `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, password DB e stringhe Postgres non devono essere presenti nel runtime Vercel.
 
 Interrompere immediatamente se uno dei controlli non coincide.
 
