@@ -264,6 +264,14 @@ try {
   }
   await elevateWithTotp(owner);
   ok(await owner.rpc('authorize_admin_request'));
+  const disabledRuntimeToken = tokenHash('runtime-disabled');
+  if (!(await owner.rpc('create_admin_step_up_grant', { grant_token_hash:disabledRuntimeToken, grant_scope:'economy' })).error) {
+    throw new Error('Database admin mutation kill switch failed');
+  }
+  if (!(await owner.from('admin_runtime_config').update({ mutations_enabled:true }).eq('singleton',true)).error) {
+    throw new Error('Authenticated user changed the admin mutation kill switch');
+  }
+  ok(await admin.from('admin_runtime_config').update({ mutations_enabled:true, updated_at:new Date().toISOString() }).eq('singleton',true));
   const recoveryRequest = crypto.randomUUID();
   if (!(await owner.rpc('admin_authorize_recovery_attempt', { target_user_id:userIds[1], action_reason:'Synthetic recovery AAL check', action_request_id:recoveryRequest, action_idempotency_key:`recovery:${recoveryRequest}`, step_up_token_hash:invalidToken })).error) throw new Error('AAL1 admin recovery guard failed');
   for (const requestedAdmin of [false, true]) {
@@ -463,6 +471,7 @@ try {
   }
   console.log('Supabase auth, social, notifications, progression, wallet, league and admin checks passed.');
 } finally {
+  await admin.from('admin_runtime_config').update({ mutations_enabled:false, updated_at:new Date().toISOString() }).eq('singleton',true);
   await admin.from('app_errors').delete().eq('path', '/check');
   await admin.from('tournaments').delete().eq('window_id', testWindow);
   if (userIds.length) await admin.from('profiles').update({ is_admin:false, account_status:'suspended' }).in('id',userIds);

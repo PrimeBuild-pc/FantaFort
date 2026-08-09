@@ -1,10 +1,11 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { prepareAdminMutation, uuidPattern } from '@/lib/admin/actions';
+import { adminAnonymizationEnabled } from '@/lib/admin/server';
 import { adminServiceClient, recordAdminFailure } from '@/lib/admin/service';
 
 export async function POST(request: NextRequest, context: { params:Promise<{ id:string }> }) {
-  if (process.env.ADMIN_ANONYMIZATION_ENABLED !== 'true') {
+  if (!adminAnonymizationEnabled()) {
     return NextResponse.json({ error:'Admin operation unavailable' }, { status:404 });
   }
   const admin = await prepareAdminMutation(request);

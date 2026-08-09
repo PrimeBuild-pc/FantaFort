@@ -1,6 +1,6 @@
 # Admin Control Center — review and rollout
 
-Status: the nine reviewed changes are merged. Migrations `190001–190009` are present in both the linked production project and FantaFort Staging as of 24 July 2026. Sensitive runtime features remain fail-closed behind environment flags.
+Status: the reviewed admin changes are merged. Migrations through `202608080001` are present in the hosted projects. Repository migration `202608090001_admin_runtime_fail_closed.sql` adds an independent database-side mutation switch defaulting to disabled; it must follow the normal staging-first migration process and is not applied by Vercel.
 
 ## Historical review order
 
@@ -24,24 +24,36 @@ Retry/compensation is documented in `docs/admin-anonymization-recovery.md`; the 
 
 All sensitive capabilities are fail-closed:
 
-- `ADMIN_MUTATIONS_ENABLED` — unset/false;
-- `ADMIN_MFA_ENFORCEMENT_ENABLED` — unset/false;
-- `ADMIN_ANONYMIZATION_ENABLED` — unset/false.
+- MFA/AAL2 is always enforced when `NODE_ENV=production`; an absent, `false` or malformed `ADMIN_MFA_ENFORCEMENT_ENABLED` cannot disable it. Configure the exact value `true` in Vercel so intent is visible.
+- `ADMIN_MUTATIONS_ENABLED` enables routes only with the exact value `true` **and** a non-empty server-only Supabase key. Missing, `false`, malformed or keyless configurations remain disabled.
+- `ADMIN_ANONYMIZATION_ENABLED` additionally requires effective mutations plus the exact value `true`; it cannot enable anonymization independently.
+- `202608090001_admin_runtime_fail_closed.sql` independently rejects creation of database mutation grants while its private switch is false, which is the default.
 
 `profiles_single_admin` remains in place. Additional administrators remain rejected by the database.
 
-## Manual configuration before activation
+## Vercel environment baseline while mutations are disabled
 
-1. Configure `SUPABASE_SERVICE_ROLE_KEY` only in the server runtime used by admin Auth routes; never expose it through a `NEXT_PUBLIC_` variable.
-2. Verify hosted TOTP support without changing existing factors.
-3. Enroll and verify the approved admin account before enabling MFA enforcement.
-4. Validate recovery redirects and email delivery in an isolated staging project.
-5. Apply migrations only after separate approval and backup/schema review.
-6. Test the PostgREST pre-request hook in staging before enabling mutations.
-7. Enable `ADMIN_MUTATIONS_ENABLED` only after authorization, CSRF and audit tests pass in staging.
-8. Keep anonymization disabled until privacy/retention rules and compensation procedures are approved.
+Apply the same admin values to the Production environment of both independent Vercel projects:
 
-No SMTP, Auth redirect, DNS or hosted template changes are part of these PRs.
+| Variable | Required value |
+|---|---|
+| `ADMIN_MFA_ENFORCEMENT_ENABLED` | `true` |
+| `ADMIN_MUTATIONS_ENABLED` | `false` |
+| `ADMIN_ANONYMIZATION_ENABLED` | `false` |
+
+Only `NEXT_PUBLIC_SUPABASE_URL` and one browser-safe client key (`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` preferred, otherwise the legacy anon key) are needed by the web runtime. Do not configure `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, database passwords or Postgres connection strings in either Vercel project while mutations remain disabled. Those credentials are not used by the current web runtime.
+
+Changes to Vercel environment variables require a redeploy. Preview scope should be configured only if that Vercel project actually serves preview deployments, using the same fail-closed admin values and the matching Supabase project.
+
+## Separate approval before future activation
+
+1. Keep the database runtime switch false until a reviewed activation window.
+2. Verify hosted TOTP, recovery redirects and email delivery in isolated staging.
+3. Apply migrations staging-first after backup/schema review.
+4. Test authorization, CSRF, audit, PostgREST direct calls and compensation paths.
+5. Introduce a server-only Supabase key only after its runtime scope and rotation process are approved.
+6. Enable mutations only when both the Vercel and database controls are intentionally changed.
+7. Keep anonymization disabled until privacy/retention rules and compensation procedures are approved.
 
 ## Residual risks
 
@@ -58,7 +70,7 @@ No SMTP, Auth redirect, DNS or hosted template changes are part of these PRs.
 
 - Hosted Supabase MFA enrollment/challenge and AAL2 token behavior.
 - Auth ban/unban and recovery email delivery.
-- Vercel server-only environment separation for the service role.
+- Future Vercel server-only key separation, only if admin mutations are approved.
 - PostgREST pre-request hook behavior during token refresh and session revocation.
 - CSP/XSS review with an authenticated admin session.
 - Concurrent admin actions across multiple Vercel instances.
