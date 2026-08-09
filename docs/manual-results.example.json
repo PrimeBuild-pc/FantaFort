@@ -1,0 +1,25 @@
+{
+  "tournament": {
+    "window_id": "manual-example-window",
+    "event_id": "manual-example-event",
+    "name": "Manual fallback event",
+    "region": "EU",
+    "starts_at": "2026-07-20T18:00:00Z",
+    "ends_at": "2026-07-20T21:00:00Z",
+    "format": "duo",
+    "round": 1,
+    "match_cap": 6
+  },
+  "results": [
+    {
+      "player_id": "peterbot",
+      "team_id": "example-team",
+      "team_size": 2,
+      "rank": 1,
+      "points": 500,
+      "matches": 6,
+      "wins": 2,
+      "team_eliminations": 30
+    }
+  ]
+}

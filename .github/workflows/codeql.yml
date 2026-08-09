@@ -1,0 +1,41 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [revival-next]
+  pull_request:
+    branches: [revival-next]
+  schedule:
+    - cron: "23 5 * * 1"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+        with:
+          languages: javascript-typescript
+          build-mode: none
+      - uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+        with:
+          output: codeql-results
+          upload: never
+          upload-database: false
+      - name: Check CodeQL results
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const files = fs.readdirSync('codeql-results').filter(file => file.endsWith('.sarif'));
+          const findings = files.flatMap(file => JSON.parse(fs.readFileSync(`codeql-results/${file}`)).runs.flatMap(run => run.results || []));
+          for (const finding of findings) {
+            const location = finding.locations?.[0]?.physicalLocation;
+            console.error(`${finding.ruleId}: ${location?.artifactLocation?.uri || 'unknown'}:${location?.region?.startLine || 0}`);
+          }
+          if (findings.length) process.exit(1);
+          console.log('CodeQL: no findings.');
+          NODE

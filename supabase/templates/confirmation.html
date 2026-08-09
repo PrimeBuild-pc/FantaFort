@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <body style="margin:0;background:#090d1a;color:#f7f9ff;font-family:Arial,sans-serif">
+    <div style="display:none;max-height:0;overflow:hidden">Confirm your FantaFort account.</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#090d1a;padding:32px 16px">
+      <tr><td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#12182a;border:1px solid #2a3555;border-radius:16px">
+          <tr><td style="padding:32px">
+            <p style="margin:0 0 24px;color:#73e7ff;font-size:18px;font-weight:800;letter-spacing:2px">FANTAFORT</p>
+            {{ if eq .Data.locale "it" }}
+              <h1 style="margin:0 0 12px;font-size:28px">Conferma la tua email</h1>
+              <p style="margin:0 0 24px;color:#c8d0e8;line-height:1.6">Completa la registrazione per accedere al tuo account FantaFort.</p>
+              <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#7c5cff;color:#fff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:10px">Conferma email</a>
+            {{ else if eq .Data.locale "es" }}
+              <h1 style="margin:0 0 12px;font-size:28px">Confirma tu correo</h1>
+              <p style="margin:0 0 24px;color:#c8d0e8;line-height:1.6">Completa el registro para acceder a tu cuenta FantaFort.</p>
+              <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#7c5cff;color:#fff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:10px">Confirmar correo</a>
+            {{ else if eq .Data.locale "de" }}
+              <h1 style="margin:0 0 12px;font-size:28px">E-Mail bestätigen</h1>
+              <p style="margin:0 0 24px;color:#c8d0e8;line-height:1.6">Schließe die Registrierung ab, um auf dein FantaFort-Konto zuzugreifen.</p>
+              <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#7c5cff;color:#fff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:10px">E-Mail bestätigen</a>
+            {{ else if eq .Data.locale "fr" }}
+              <h1 style="margin:0 0 12px;font-size:28px">Confirmez votre e-mail</h1>
+              <p style="margin:0 0 24px;color:#c8d0e8;line-height:1.6">Terminez l’inscription pour accéder à votre compte FantaFort.</p>
+              <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#7c5cff;color:#fff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:10px">Confirmer l’e-mail</a>
+            {{ else }}
+              <h1 style="margin:0 0 12px;font-size:28px">Confirm your email</h1>
+              <p style="margin:0 0 24px;color:#c8d0e8;line-height:1.6">Complete registration to access your FantaFort account.</p>
+              <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#7c5cff;color:#fff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:10px">Confirm email</a>
+            {{ end }}
+            <p style="margin:28px 0 8px;color:#8f9ab8;font-size:13px;line-height:1.5">If the button does not work, copy this link:</p>
+            <p style="margin:0;word-break:break-all;font-size:12px"><a href="{{ .ConfirmationURL }}" style="color:#73e7ff">{{ .ConfirmationURL }}</a></p>
+            <p style="margin:28px 0 0;color:#8f9ab8;font-size:12px;line-height:1.5">If you did not create this account, ignore this email. FantaFort is an independent sandbox fantasy game and is not endorsed by Epic Games.</p>
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body>
+</html>
