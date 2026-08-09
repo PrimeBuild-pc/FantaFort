@@ -1,6 +1,9 @@
 name: Encrypted database backup
 
 on:
+  push:
+    branches: [revival-next]
+    paths: [.github/workflows/backup-database.yml]
   schedule:
     - cron: '17 2 * * 0'
   workflow_dispatch:
