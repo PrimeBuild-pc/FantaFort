@@ -40,6 +40,26 @@ export interface Profile {
   communityEmailOptIn: boolean;
   communityEmailOptedInAt: string | null;
   communityEmailOptedOutAt: string | null;
+  publicLineupEnabled: boolean;
+}
+
+export interface PublicLineupPlayer {
+  playerId: string;
+  handle: string;
+  realName: string | null;
+  team: string | null;
+  photoUrl: string | null;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  currentPrice: number;
+}
+
+export interface PublicLineup {
+  username: string;
+  nameStyle: Profile['nameStyle'];
+  rank: number;
+  netWorth: number;
+  badges: PublicBadge[];
+  lineup: PublicLineupPlayer[];
 }
 
 export function getLevelProgress(experiencePoints: number) {
