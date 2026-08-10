@@ -23,7 +23,13 @@ const ownerName = `owner_${runSuffix}`;
 const friendName = `friend_${runSuffix}`;
 const recoveryName = `recovery_${runSuffix}`;
 const testWindow = `check-${Date.now()}`;
+// Invariant: every technical account must carry a test_marker, because that metadata is the
+// only authoritative signal excluding it from Founding 50 and the public leaderboard. An
+// unmarked account is therefore allowed only in a disposable local database.
 const makeUser = async (name, marked = true) => {
+  if (!marked && !['127.0.0.1', 'localhost'].includes(testHost)) {
+    throw new Error('Unmarked technical accounts are only allowed against a local database');
+  }
   const email = `${name}-${Date.now()}@example.com`;
   const password = `Test-${crypto.randomUUID()}!`;
   const created = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { username: name, ...(marked ? { test_marker:'CHECK_SOCIAL' } : {}) } });
@@ -351,7 +357,8 @@ try {
     || adminDetail.communityEmailOptIn || !Array.isArray(adminDetail.badges)) throw new Error('Admin user detail failed');
   const foundingPreview = ok(await owner.rpc('admin_preview_founding_50'));
   if (foundingPreview.some(candidate=>userIds.includes(candidate.user_id))) throw new Error('Synthetic accounts entered Founding 50 preview');
-  if (foundingPreview.some(candidate=>candidate.username===ownerName) || !foundingPreview.every(candidate=>'email_confirmed' in candidate)) {
+  if (foundingPreview.some(candidate=>candidate.username===ownerName)
+    || !foundingPreview.every(candidate=>['email_confirmed','historical_candidate','currently_awardable','award_block_reason'].every(field=>field in candidate))) {
     throw new Error('Founding 50 preview shape or administrator exclusion failed');
   }
 
@@ -408,7 +415,36 @@ try {
     const foundingName = `founder_${runSuffix}`;
     await makeUser(foundingName, false);
     const foundingId = userIds.at(-1);
-    if (!ok(await owner.rpc('admin_preview_founding_50')).some(candidate=>candidate.user_id===foundingId)) throw new Error('Real account missing from Founding 50 preview');
+    const candidateRow = async () => ok(await owner.rpc('admin_preview_founding_50')).find(candidate=>candidate.user_id===foundingId);
+    const initialCandidate = await candidateRow();
+    if (!initialCandidate?.historical_candidate || !initialCandidate.currently_awardable || initialCandidate.award_block_reason) {
+      throw new Error('Real account missing from Founding 50 preview');
+    }
+
+    // A suspended account keeps its historical slot but must not be awardable.
+    ok(await admin.from('profiles').update({ account_status:'suspended' }).eq('id',foundingId));
+    const suspendedCandidate = await candidateRow();
+    if (!suspendedCandidate?.historical_candidate || suspendedCandidate.currently_awardable
+      || suspendedCandidate.award_block_reason !== 'suspended') throw new Error('Suspended Founding 50 semantics failed');
+    const suspendedToken = tokenHash('badge-founding-suspended');
+    ok(await owner.rpc('create_admin_step_up_grant', { grant_token_hash:suspendedToken, grant_scope:'badge', grant_target_user_id:foundingId }));
+    const suspendedRequest = crypto.randomUUID();
+    if (!(await owner.rpc('admin_set_user_badge', { target_user_id:foundingId, target_badge_slug:'founding-50', assign_badge:true,
+      action_reason:'Synthetic suspended founding denial', action_request_id:suspendedRequest,
+      action_idempotency_key:`badge:${suspendedRequest}`, step_up_token_hash:suspendedToken })).error) throw new Error('Suspended account received Founding 50');
+    ok(await admin.from('profiles').update({ account_status:'active' }).eq('id',foundingId));
+
+    // An unconfirmed email is informational and must not block the award.
+    const unconfirmedName = `unconfirmed_${runSuffix}`;
+    const unconfirmed = ok(await admin.auth.admin.createUser({ email:`${unconfirmedName}@example.com`,
+      password:`Test-${crypto.randomUUID()}!`, email_confirm:false, user_metadata:{ username:unconfirmedName } }));
+    userIds.push(unconfirmed.user.id);
+    const unconfirmedCandidate = ok(await owner.rpc('admin_preview_founding_50')).find(candidate=>candidate.user_id===unconfirmed.user.id);
+    if (!unconfirmedCandidate || unconfirmedCandidate.email_confirmed || !unconfirmedCandidate.historical_candidate
+      || !unconfirmedCandidate.currently_awardable || unconfirmedCandidate.award_block_reason) {
+      throw new Error('Unconfirmed email blocked a Founding 50 candidate');
+    }
+
     const foundingToken = tokenHash('badge-founding-valid');
     ok(await owner.rpc('create_admin_step_up_grant', { grant_token_hash:foundingToken, grant_scope:'badge', grant_target_user_id:foundingId }));
     const foundingRequest = crypto.randomUUID();

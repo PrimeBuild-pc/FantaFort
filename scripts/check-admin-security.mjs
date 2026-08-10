@@ -93,6 +93,31 @@ for (const expected of ["scope === 'badge' ? adminBadgeMutationsEnabled() : admi
   '!adminMutationsEnabled() && !adminBadgeMutationsEnabled()', 'rejectCrossOriginMutation']) {
   if (!stepUpRoute.includes(expected)) throw new Error('Admin step-up capability gate is incomplete');
 }
+// Technical accounts must be identifiable by metadata, not by nickname or email-domain guessing.
+for (const file of (await walk('scripts')).filter(name => name.endsWith('.mjs'))) {
+  const content = await readFile(file, 'utf8');
+  if (content.includes('auth.admin.createUser') && !content.includes('test_marker')) {
+    throw new Error('A script creates accounts without a test_marker');
+  }
+}
+const socialChecks = await readFile('scripts/check-social.mjs', 'utf8');
+if (!socialChecks.includes("if (!marked && !['127.0.0.1', 'localhost'].includes(testHost))")) {
+  throw new Error('Unmarked technical accounts are not restricted to a local database');
+}
+
+const foundingMigration = await readFile('supabase/migrations/202608110002_founding_50_awardability.sql', 'utf8');
+for (const expected of ['historical_candidate boolean', 'currently_awardable boolean', 'award_block_reason text',
+  "candidate.status = 'active'", "case when candidate.status <> 'active' then candidate.status end",
+  'not profile.is_admin', "nullif(auth_user.raw_user_meta_data ->> 'test_marker', '') is null",
+  'candidate.user_id = target_user_id and candidate.currently_awardable']) {
+  if (!foundingMigration.includes(expected)) throw new Error('Founding 50 awardability migration is incomplete');
+}
+// Eligibility must not depend on unstable nickname or email-domain heuristics.
+if (/email_confirmed_at is (not )?null\s*(and|then)[^\n]*award/i.test(foundingMigration)
+  || /(profile\.username|auth_user\.email)\s*(!?~|like|ilike)/i.test(foundingMigration)) {
+  throw new Error('Founding 50 eligibility uses a nickname, email or confirmation heuristic');
+}
+
 const granularMigration = await readFile('supabase/migrations/202608110001_granular_badge_admin.sql', 'utf8');
 for (const expected of ['badge_mutations_enabled boolean not null default false',
   "case when new.scope = 'badge' then config.badge_mutations_enabled else config.mutations_enabled end",

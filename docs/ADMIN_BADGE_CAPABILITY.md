@@ -49,7 +49,8 @@ Four independent layers, each fail-closed:
 | Capability creep after enabling badges | `ADMIN_BADGE_MUTATIONS_ENABLED` is read only by the badge route and the `badge` step-up scope; `check:admin` fails if it appears in any other admin route |
 | CSRF / cross-site mutation | `rejectCrossOriginMutation` on every mutating admin route |
 | Self-award or privilege escalation | `target_user_id = auth.uid()` is rejected; admin targets are rejected; badges are public metadata only and never consulted for authorization |
-| Fabricated Founding 50 award | `founding-50` is accepted only for an account currently returned by `admin_preview_founding_50()` |
+| Fabricated Founding 50 award | `founding-50` is accepted only for an account that `admin_preview_founding_50()` currently returns **and** marks `currently_awardable` |
+| Unmarked technical account taking a founding slot | `test_marker` is mandatory for technical accounts, enforced by `check:admin` and by `makeUser` |
 | Manual award of a computed badge | `assignment_type = 'dynamic'` is excluded from assignable badges, plus a table trigger on `user_badges` |
 | Bulk abuse | 20 step-up grants / 10 minutes per admin, 50 badge actions / hour per admin |
 | Undetected action | Append-only `admin_audit_log` row with mandatory reason, request id and idempotency key |
@@ -70,25 +71,68 @@ Assignable set = every badge whose `assignment_type` is not `dynamic`.
 
 ## Founding 50 eligibility
 
+The badge means: *one of the first 50 real FantaFort accounts registered*. The system is defined
+independently of whether 50 real accounts exist yet.
+
+### Authoritative criteria
+
 `admin_preview_founding_50()` (AAL2, read-only) returns the first 50 accounts ordered by
-`auth.users.created_at`, then profile id, excluding:
+`auth.users.created_at`, then profile id. Exclusion uses only stable database facts:
 
-- anonymized profiles;
-- soft-deleted auth users (`deleted_at`);
-- currently banned auth users;
-- accounts carrying a `test_marker` in `raw_user_meta_data` (synthetic, security-test, automation);
-- administrators — the owner account is excluded by default, since a founding badge is a
-  recognition of early players, not of the operator.
+| Excluded | Source of truth |
+|---|---|
+| Administrators | `profiles.is_admin` — a founding badge recognises early players, not the operator |
+| Technical accounts (synthetic, security-test, automation) | `auth.users.raw_user_meta_data ->> 'test_marker'` |
+| Anonymized profiles | `profiles.account_status = 'anonymized'` |
+| Soft-deleted auth users | `auth.users.deleted_at` |
+| Banned auth users | `auth.users.banned_until` |
 
-The preview also reports `email_confirmed` and `account_status` so an unconfirmed or suspended
-account can be judged before an award. Assignment additionally requires `account_status = 'active'`.
-The preview never awards anything.
+**Nickname shape and email domain are not eligibility criteria.** They were only supplementary
+sanity checks during a one-off manual review, they were never applied by
+`admin_preview_founding_50()`, and they must not become permanent filters: they are unstable
+heuristics and a real player may legitimately match them.
+
+**An unconfirmed email is not an exclusion criterion.** `email_confirmed` is reported for
+information only and never blocks the award.
+
+### Historical slot versus current awardability
+
+The preview reports both, so a blocked account is visible rather than silently missing:
+
+- `historical_candidate` — the account holds a position among the first 50 real accounts. This is a
+  historical fact and does not change when the account's status changes.
+- `currently_awardable` — the badge can be granted right now (`account_status = 'active'`).
+- `award_block_reason` — why not, when it is not awardable; `suspended` today, and any future
+  non-active status automatically.
+
+A suspended account therefore **keeps its historical slot** — it is not renumbered away and does not
+free the position for a later registrant — but cannot receive the badge until it is active again.
+`admin_set_user_badge` accepts `founding-50` only for an account the preview currently lists **and**
+marks `currently_awardable`. The preview itself never awards anything.
+
+### Technical-account invariant
+
+Because `test_marker` is the only authoritative signal separating technical accounts from real
+players — for Founding 50 and for the public leaderboard alike — **every technical, synthetic,
+security-test or automation account created against staging or production must carry
+`user_metadata.test_marker` at creation time.** An unmarked technical account would silently occupy
+a Founding 50 slot and appear on the global leaderboard.
+
+This is enforced, not merely documented:
+
+- `check:admin` fails if any script creates accounts without a `test_marker`;
+- `makeUser(name, false)` in `scripts/check-social.mjs` throws unless the target is a local,
+  disposable database.
+
+Retiring a technical account keeps the marker (`CHECK_SOCIAL_RETIRED`, `ANONYMIZED`), so exclusion
+survives the account's lifecycle.
 
 ## Activation procedure (not performed)
 
 Both switches are required; either one alone leaves badges disabled.
 
-1. Apply `202608110001_granular_badge_admin.sql` to the target project (staging first).
+1. Apply `202608110001_granular_badge_admin.sql` and `202608110002_founding_50_awardability.sql` to
+   the target project (staging first).
 2. Database: `update public.admin_runtime_config set badge_mutations_enabled = true, updated_at = now() where singleton;`
    — service role only; ordinary and admin sessions cannot write this table.
 3. Vercel: add `ADMIN_BADGE_MUTATIONS_ENABLED=true` (Production, sensitive) and redeploy.
@@ -113,7 +157,7 @@ reason, request id, idempotency key and before/after state. The log is append-on
 reader exposes only hashed references, never raw ids.
 
 Rollback of an individual award is a `badge.remove` through the same gated path — itself audited.
-Rollback of the capability is the deactivation procedure above. Rollback of the migration is a
+Rollback of the capability is the deactivation procedure above. Rollback of the migrations is a
 reviewed follow-up migration (drop the column, restore the previous trigger body and the previous
 `admin_preview_founding_50`), not a production data deletion; the column is additive and defaults to
 `false`, so leaving it in place while disabled is already the safe state.
