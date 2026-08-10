@@ -22,6 +22,13 @@ export interface Player {
   eligibility?: string;
 }
 
+export interface PublicBadge {
+  slug: string;
+  name: string;
+  description: string;
+  icon: string;
+}
+
 export interface Profile {
   username: string;
   locale: Locale;
@@ -30,6 +37,9 @@ export interface Profile {
   isAdmin: boolean;
   walletCents: number;
   nameStyle: 'default' | 'storm' | 'victory' | 'legendary';
+  communityEmailOptIn: boolean;
+  communityEmailOptedInAt: string | null;
+  communityEmailOptedOutAt: string | null;
 }
 
 export function getLevelProgress(experiencePoints: number) {

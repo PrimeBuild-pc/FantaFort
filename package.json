@@ -15,6 +15,7 @@
     "check:api": "node --experimental-strip-types scripts/check-fortnite.mjs",
     "check:api-bounds": "node --experimental-strip-types scripts/check-api-bounds.mjs",
     "check:db": "node --env-file-if-exists=.env.local scripts/check-social.mjs",
+    "check:community": "node --env-file-if-exists=.env.local scripts/check-community.mjs",
     "check:auth": "node --experimental-strip-types scripts/check-auth-redirect.mjs",
     "check:admin": "node scripts/check-admin-security.mjs && node --experimental-strip-types scripts/check-admin-config.mjs && node --experimental-strip-types scripts/check-admin-jwt.mjs",
     "check:client-secrets": "node scripts/check-client-secrets.mjs",

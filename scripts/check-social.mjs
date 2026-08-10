@@ -334,7 +334,25 @@ try {
   if (adminUsers.length !== 1 || Number(adminUsers[0].total_count) !== 1) throw new Error('Admin user search failed');
   const adminDetail = ok(await owner.rpc('admin_get_user', { target_user_id:userIds[1] }));
   const adminImpact = ok(await owner.rpc('admin_preview_user_impact', { target_user_id:userIds[1] }));
-  if (adminDetail.role !== 'user' || adminImpact.isAdmin || Number(adminImpact.walletTransactions) < 1) throw new Error('Admin user detail failed');
+  if (adminDetail.role !== 'user' || adminImpact.isAdmin || Number(adminImpact.walletTransactions) < 1
+    || adminDetail.communityEmailOptIn || !Array.isArray(adminDetail.badges)) throw new Error('Admin user detail failed');
+  const foundingPreview = ok(await owner.rpc('admin_preview_founding_50'));
+  if (foundingPreview.some(candidate=>userIds.includes(candidate.user_id))) throw new Error('Synthetic accounts entered Founding 50 preview');
+
+  const badgeToken = tokenHash('badge-assign');
+  ok(await owner.rpc('create_admin_step_up_grant', { grant_token_hash:badgeToken, grant_scope:'badge', grant_target_user_id:userIds[1] }));
+  const badgeRequest = crypto.randomUUID();
+  const badgeArgs = { target_user_id:userIds[1], target_badge_slug:'contributor', assign_badge:true,
+    action_reason:'Verified synthetic contribution', action_request_id:badgeRequest,
+    action_idempotency_key:`badge:${badgeRequest}`, step_up_token_hash:badgeToken };
+  ok(await owner.rpc('admin_set_user_badge', badgeArgs));
+  const replayedBadge = ok(await owner.rpc('admin_set_user_badge', badgeArgs));
+  const badgedDetail = ok(await owner.rpc('admin_get_user', { target_user_id:userIds[1] }));
+  if (!replayedBadge.replayed || !badgedDetail.badges.some(badge=>badge.slug==='contributor')) throw new Error('Admin badge assignment or idempotency failed');
+  const badgeAudit = ok(await owner.rpc('admin_list_audit', { search_filter:'badge', action_filter:'badge.assign', outcome_filter:'succeeded',
+    target_type_filter:'user', target_ref_filter:null, actor_username_filter:ownerName,
+    created_from_filter:new Date(Date.now()-3600000).toISOString(), created_to_filter:new Date(Date.now()+60000).toISOString(), page_index:0, page_size:20 }));
+  if (!badgeAudit.some(row=>row.action==='badge.assign' && row.reason==='Verified synthetic contribution')) throw new Error('Admin badge audit failed');
   const aal1Mutation = await aal1Owner.rpc('admin_set_account_status', {
     target_user_id:userIds[2], new_status:'suspended', action_reason:'Synthetic AAL1 denial',
     action_request_id:crypto.randomUUID(), action_idempotency_key:`aal1:${crypto.randomUUID()}`, step_up_token_hash:invalidToken,

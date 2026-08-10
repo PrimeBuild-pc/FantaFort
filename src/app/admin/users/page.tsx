@@ -12,6 +12,8 @@ type UserRow = {
   username:string;
   account_status:'active'|'suspended'|'anonymized';
   account_role:'admin'|'user';
+  community_email_opt_in:boolean;
+  badge_count:number;
   created_at:string;
   last_sign_in_at:string|null;
 };
@@ -49,8 +51,8 @@ export default function AdminUsersPage() {
       <button className="epic-button">Search</button>
     </form>
     <section className="epic-panel"><div className="section-heading"><h2>{total} accounts</h2><Link href="/admin">Overview</Link></div>
-      <div className="table-wrap"><table><thead><tr><th>Account</th><th>Status</th><th>Role</th><th>Registered</th><th>Last access</th><th></th></tr></thead><tbody>{users.map(user => <tr key={user.id}>
-        <td><strong>{user.username}</strong><small>{user.email}</small></td><td>{user.account_status}</td><td>{user.account_role}</td>
+      <div className="table-wrap"><table><thead><tr><th>Account</th><th>Status</th><th>Role</th><th>Updates</th><th>Badges</th><th>Registered</th><th>Last access</th><th></th></tr></thead><tbody>{users.map(user => <tr key={user.id}>
+        <td><strong>{user.username}</strong><small>{user.email}</small></td><td>{user.account_status}</td><td>{user.account_role}</td><td>{user.community_email_opt_in?'Opted in':'Off'}</td><td>{user.badge_count}</td>
         <td>{new Date(user.created_at).toLocaleDateString()}</td><td>{user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString() : '—'}</td>
         <td><Link href={`/admin/users/${user.id}`}>Details →</Link></td>
       </tr>)}</tbody></table></div>

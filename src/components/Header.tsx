@@ -33,12 +33,13 @@ export default function Header() {
       <Link href="/wallet">{t('wallet')}</Link>
       <Link href="/dashboard/team">{t('squad')}</Link>
       <Link href="/leagues">{t('leagues')}</Link>
+      <Link href="/leaderboard">{t('rankings')}</Link>
       <Link href="/friends">{t('friends')}</Link>
       <Link href="/tournaments">{t('tournaments')}</Link>
       <Link href="/about">{t('info')}</Link>
       {profile?.isAdmin && <Link href="/admin">{t('admin')}</Link>}
     </nav>
-    <nav className="mobile-nav" aria-label="Mobile navigation"><Link href="/dashboard">⌂<small>{t('market')}</small></Link><Link href="/dashboard/team">♟<small>{t('squad')}</small></Link><Link href="/leagues">★<small>{t('leagues')}</small></Link><Link href="/friends">●<small>{t('friends')}</small></Link><Link href="/account">◆<small>{t('account')}</small></Link></nav>
+    <nav className="mobile-nav" aria-label="Mobile navigation"><Link href="/dashboard">⌂<small>{t('market')}</small></Link><Link href="/dashboard/team">♟<small>{t('squad')}</small></Link><Link href="/leagues">★<small>{t('leagues')}</small></Link><Link href="/leaderboard">#<small>{t('rankings')}</small></Link><Link href="/account">◆<small>{t('account')}</small></Link></nav>
     <div className="header-actions">
       {userId && <Link href="/notifications" className="notification-bell" aria-label={`${t('notifications')}: ${unread}`}>◆{unread > 0 && <span>{unread}</span>}</Link>}
       <button className="guide-button" onClick={openGuide} aria-label={t('help')} title={t('help')}>?</button>
