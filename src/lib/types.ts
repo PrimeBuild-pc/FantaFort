@@ -22,6 +22,13 @@ export interface Player {
   eligibility?: string;
 }
 
+export interface PublicBadge {
+  slug: string;
+  name: string;
+  description: string;
+  icon: string;
+}
+
 export interface Profile {
   username: string;
   locale: Locale;

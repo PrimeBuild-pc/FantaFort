@@ -4,6 +4,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import BadgeList from '@/components/BadgeList';
 import Header from '@/components/Header';
 import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
@@ -11,12 +12,13 @@ import { communityCopy, DISCORD_URL } from '@/lib/community';
 import { Locale, locales } from '@/lib/i18n';
 import { isStrongPassword } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { getLevelProgress } from '@/lib/types';
+import { getLevelProgress, type PublicBadge } from '@/lib/types';
 import { PRIVACY_EMAIL } from '@/lib/legal';
 
 const styles = [{ id:'storm', cost:100 }, { id:'victory', cost:250 }, { id:'legendary', cost:500 }];
 type XpEvent = { id:number; type:'league_completed'|'league_won'; amount:number; created_at:string; leagues:{name:string}|null };
 type Departure = { id:number; league_id:string|null; league_name:string; left_at:string };
+type GlobalSummary = { rank:number; username:string; net_worth:number; badges:PublicBadge[] };
 const deletionCopy:Record<Locale,{title:string;help:string;action:string;confirm:string}>={
   en:{title:'Account deletion',help:'Leave or close open leagues first. The request immediately suspends access; after identity review we normally complete deletion or anonymization within 30 days.',action:'Request account deletion',confirm:'Suspend access and submit the account deletion request?'},
   it:{title:'Cancellazione account',help:'Prima lascia o chiudi le leghe aperte. La richiesta sospende subito l’accesso; dopo la verifica dell’identità completiamo normalmente cancellazione o anonimizzazione entro 30 giorni.',action:'Richiedi cancellazione account',confirm:'Sospendere l’accesso e inviare la richiesta di cancellazione?'},
@@ -38,8 +40,16 @@ export default function AccountPage() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [communityEmail, setCommunityEmail] = useState(false);
+  const [globalSummary, setGlobalSummary] = useState<GlobalSummary>();
 
   useEffect(() => { if (profile) { setUsername(profile.username); setSelectedLocale(profile.locale); setCommunityEmail(profile.communityEmailOptIn); } }, [profile]);
+  useEffect(() => {
+    if (!supabase || !profile) return;
+    supabase.rpc('get_global_leaderboard',{search_username:profile.username}).then(({data}) => {
+      const match=(data as GlobalSummary[]|null)?.find(row=>row.username.toLowerCase()===profile.username.toLowerCase());
+      if (match) setGlobalSummary({...match,rank:Number(match.rank),net_worth:Number(match.net_worth),badges:match.badges||[]});
+    });
+  }, [profile]);
   useEffect(() => {
     if (!supabase) return;
     Promise.all([
@@ -87,7 +97,7 @@ export default function AccountPage() {
     <div className="page-title"><div className="eyebrow">PLAYER PROFILE</div><h1>{t('settings')}</h1></div>
     {message && <p className="notice" role="status">{message}</p>}
     <div className="account-grid">
-      <section className="epic-panel profile-panel"><div className="profile-panel-heading"><div className="eyebrow">PROFILE</div><h2>{t('account')}</h2></div><div className="profile-identity"><div className={`profile-emblem name-${profile?.nameStyle || 'default'}`}>{(profile?.username || 'P').slice(0,2).toUpperCase()}</div><div className="level-summary"><b>{t('level')} {level.level}</b><strong>{t(`badge_${level.badge}` as Parameters<typeof t>[0])}</strong><span>{level.current} / {level.required} XP</span><i role="progressbar" aria-label={`${t('level')} ${level.level}`} aria-valuemin={0} aria-valuemax={level.required} aria-valuenow={level.current}><em style={{ width:`${level.current / level.required * 100}%` }} /></i></div></div><form onSubmit={submit}>
+      <section className="epic-panel profile-panel"><div className="profile-panel-heading"><div className="eyebrow">PROFILE</div><h2>{t('account')}</h2></div><div className="profile-identity"><div className={`profile-emblem name-${profile?.nameStyle || 'default'}`}>{(profile?.username || 'P').slice(0,2).toUpperCase()}</div><div className="level-summary"><b>{t('level')} {level.level}</b><strong>{t(`badge_${level.badge}` as Parameters<typeof t>[0])}</strong><span>{level.current} / {level.required} XP</span><i role="progressbar" aria-label={`${t('level')} ${level.level}`} aria-valuemin={0} aria-valuemax={level.required} aria-valuenow={level.current}><em style={{ width:`${level.current / level.required * 100}%` }} /></i></div>{globalSummary&&<div className="profile-global-summary"><span>{t('position')} <b>#{globalSummary.rank}</b></span><span>{t('totalEquity')} <b>{new Intl.NumberFormat(locale).format(globalSummary.net_worth)} C</b></span><BadgeList badges={globalSummary.badges}/></div>}</div><form onSubmit={submit}>
         <label>{t('username')}<input value={username} onChange={event => setUsername(event.target.value)} required minLength={3} maxLength={30} /></label>
         <label>{t('email')}<input value={userEmail || ''} disabled /></label>
         <label>{t('language')}<select value={selectedLocale} onChange={event => setSelectedLocale(event.target.value as Locale)}>{locales.map(item => <option value={item} key={item}>{item.toUpperCase()}</option>)}</select></label>
