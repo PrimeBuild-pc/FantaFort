@@ -10,7 +10,7 @@ export async function adminFetch(input: string, init: RequestInit = {}) {
   return fetch(input, { ...init, headers });
 }
 
-export async function adminStepUp(scope:'role'|'economy'|'recovery'|'anonymize'|'account_status'|'session_revoke', code:string, targetId?:string) {
+export async function adminStepUp(scope:'role'|'economy'|'recovery'|'anonymize'|'account_status'|'session_revoke'|'badge', code:string, targetId?:string) {
   if (!supabase || !/^\d{6}$/.test(code)) return null;
   const factors = await supabase.auth.mfa.listFactors();
   const factor = factors.data?.totp.find(item => item.status === 'verified');
