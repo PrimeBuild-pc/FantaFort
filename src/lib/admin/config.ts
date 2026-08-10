@@ -1,6 +1,7 @@
 type AdminEnvironment = {
   NODE_ENV?: string;
   ADMIN_MUTATIONS_ENABLED?: string;
+  ADMIN_BADGE_MUTATIONS_ENABLED?: string;
   ADMIN_MFA_ENFORCEMENT_ENABLED?: string;
   ADMIN_ANONYMIZATION_ENABLED?: string;
   SUPABASE_SECRET_KEY?: string;
@@ -16,6 +17,10 @@ export function parseAdminRuntimeConfig(env: AdminEnvironment) {
 
   return {
     mutationsEnabled,
+    // Independent least-privilege capability: badge assign/remove runs entirely on the
+    // administrator's own AAL2 session and never needs a server Supabase key, so it is
+    // neither implied by nor implies ADMIN_MUTATIONS_ENABLED.
+    badgeMutationsEnabled: exactlyTrue(env.ADMIN_BADGE_MUTATIONS_ENABLED),
     anonymizationEnabled: mutationsEnabled && exactlyTrue(env.ADMIN_ANONYMIZATION_ENABLED),
     mfaEnforcementEnabled: env.NODE_ENV === 'production' || env.ADMIN_MFA_ENFORCEMENT_ENABLED !== 'false',
     serverKeyConfigured,

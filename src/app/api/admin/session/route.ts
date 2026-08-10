@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAnonymizationEnabled, adminMfaEnforcementEnabled, adminMutationsEnabled, authorizeAdmin } from '@/lib/admin/server';
+import { adminAnonymizationEnabled, adminBadgeMutationsEnabled, adminMfaEnforcementEnabled, adminMutationsEnabled, authorizeAdmin } from '@/lib/admin/server';
 
 export async function GET(request: NextRequest) {
   const admin = await authorizeAdmin(request, { allowAal1:true });
@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     authorized: true,
     mutationsEnabled: adminMutationsEnabled(),
+    badgeMutationsEnabled: adminBadgeMutationsEnabled(),
     mfaEnforcementEnabled: adminMfaEnforcementEnabled(),
     currentAal: admin.currentAal,
     nextAal,

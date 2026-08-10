@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import {
+  adminBadgeMutationsEnabled,
   adminMutationsEnabled,
   authorizeAdmin,
   rejectCrossOriginMutation,
@@ -10,9 +11,13 @@ import {
 const scopes = new Set(['role', 'economy', 'recovery', 'anonymize', 'account_status', 'session_revoke', 'badge']);
 const targetedScopes = new Set(['account_status', 'session_revoke', 'badge']);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Each scope answers to exactly one capability; neither capability widens the other.
+const scopeEnabled = (scope: string) => scope === 'badge' ? adminBadgeMutationsEnabled() : adminMutationsEnabled();
 
 export async function POST(request: NextRequest) {
-  if (!adminMutationsEnabled()) return NextResponse.json({ error: 'Admin mutations disabled' }, { status: 404 });
+  if (!adminMutationsEnabled() && !adminBadgeMutationsEnabled()) {
+    return NextResponse.json({ error: 'Admin mutations disabled' }, { status: 404 });
+  }
   const crossOrigin = rejectCrossOriginMutation(request);
   if (crossOrigin) return crossOrigin;
 
@@ -26,6 +31,7 @@ export async function POST(request: NextRequest) {
     || (targetedScopes.has(body.scope) && (typeof body.targetId !== 'string' || !uuid.test(body.targetId)))) {
     return NextResponse.json({ error: 'Invalid step-up request' }, { status: 400 });
   }
+  if (!scopeEnabled(body.scope)) return NextResponse.json({ error: 'Admin mutations disabled' }, { status: 404 });
 
   const verified = await admin.client.auth.mfa.challengeAndVerify({ factorId:body.factorId, code:body.code });
   if (verified.error || !verified.data) return NextResponse.json({ error: 'MFA verification failed' }, { status: 403 });
