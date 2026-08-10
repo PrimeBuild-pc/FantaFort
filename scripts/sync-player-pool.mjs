@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { fetchOsirionJson, isLeaderboardResponse, isTournamentResponse } from '../src/lib/osirion-fetch.ts';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -7,17 +8,7 @@ if (!url || !serviceKey) throw new Error('Missing Supabase configuration');
 const dryRun = process.argv.includes('--dry-run');
 const fullSync = dryRun || process.argv.includes('--full');
 const supabase = createClient(url, serviceKey, { auth: { persistSession: false } });
-const api = 'https://fnapi.osirion.gg/v1';
-const getJson = async (url, label) => {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const response = await fetch(url);
-    if (response.ok) return response.json();
-    if (response.status !== 429 && response.status < 500) throw new Error(`${label}: ${response.status}`);
-    if (attempt === 4) throw new Error(`${label}: ${response.status}`);
-    const retryAfter = Number(response.headers.get('retry-after'));
-    await new Promise(resolve => setTimeout(resolve, retryAfter > 0 ? retryAfter * 1000 : 5000 * 2 ** attempt));
-  }
-};
+
 const existing = [];
 for (let from = 0; ; from += 1000) {
   const { data, error } = await supabase.from('players').select('id, account_id, price, rarity, photo_url, active').range(from, from + 999);
@@ -30,7 +21,7 @@ const imported = new Map();
 let scannedWindows = 0;
 
 for (const region of ['EU', 'NAC', 'NAW', 'OCE']) {
-  const data = await getJson(`${api}/tournaments?region=${region}&includeHistoricData=true`, `Osirion tournaments unavailable for ${region}`);
+  const data = await fetchOsirionJson(`/tournaments?region=${region}&includeHistoricData=true`, isTournamentResponse);
   const perEvent = new Map();
   const candidates = data.tournaments
     .filter(event => /fncs/i.test(event.eventId))
@@ -53,8 +44,7 @@ for (const region of ['EU', 'NAC', 'NAW', 'OCE']) {
       leaderboardEventWindowId: location.leaderboardEventWindowId,
       page: '0',
     });
-    const { leaderboard } = await getJson(`${api}/tournaments/leaderboard?${params}`, 'Osirion leaderboard unavailable');
-    if (!leaderboard?.entries) continue;
+    const { leaderboard } = await fetchOsirionJson(`/tournaments/leaderboard?${params}`, isLeaderboardResponse);
     scannedWindows++;
 
     const developmentDivision = /division[23]/i.test(candidate.event.eventId);
@@ -78,6 +68,7 @@ for (const region of ['EU', 'NAC', 'NAW', 'OCE']) {
 }
 
 const players = [...imported.values()];
+if (players.length > 10_000) throw new Error('Osirion player import exceeds record limit');
 if (!dryRun && players.length) {
   const { error: upsertError } = await supabase.from('players').upsert(players);
   if (upsertError) throw upsertError;

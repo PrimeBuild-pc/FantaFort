@@ -6,6 +6,8 @@ const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseSocketOrigin = supabaseOrigin?.replace(/^http/, 'ws');
 const turnstileOrigin = 'https://challenges.cloudflare.com';
 const connectSources = ["'self'", supabaseOrigin, supabaseSocketOrigin, turnstileOrigin].filter(Boolean).join(' ');
+const csp = `default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'unsafe-inline' ${turnstileOrigin}; script-src-attr 'none'; frame-src ${turnstileOrigin}; style-src 'self' https://fonts.googleapis.com; style-src-elem 'self' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src ${connectSources}; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests`;
+const cspReportOnly = `default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' ${turnstileOrigin}; script-src-attr 'none'; frame-src ${turnstileOrigin}; style-src 'self' https://fonts.googleapis.com; style-src-attr 'none'; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src ${connectSources}; worker-src 'self' blob:; manifest-src 'self'`;
 
 const nextConfig: NextConfig = {
   turbopack: { root: process.cwd() },
@@ -28,7 +30,8 @@ const nextConfig: NextConfig = {
     {
       source: '/(.*)',
       headers: [
-        { key: 'Content-Security-Policy', value: `default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'unsafe-inline' ${turnstileOrigin}; frame-src ${turnstileOrigin}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src ${connectSources}; worker-src 'self' blob:; upgrade-insecure-requests` },
+        { key: 'Content-Security-Policy', value: csp },
+        { key: 'Content-Security-Policy-Report-Only', value: cspReportOnly },
         { key: 'Strict-Transport-Security', value: 'max-age=31536000' },
         { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
         { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=()' },
