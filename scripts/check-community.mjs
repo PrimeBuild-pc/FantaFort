@@ -48,7 +48,7 @@ try {
 
   const publicRows=ok(await anonymous.rpc('get_global_leaderboard',{search_username:null}));
   if(publicRows.length!==50||publicRows.some(row=>row.is_current_user)) throw new Error('Anonymous Top 50 failed');
-  const allowed=['badges','is_current_user','name_style','net_worth','rank','username'];
+  const allowed=['badges','is_current_user','name_style','net_worth','public_lineup','rank','username'];
   if(publicRows.some(row=>JSON.stringify(Object.keys(row).sort())!==JSON.stringify(allowed))) throw new Error('Leaderboard exposed unexpected fields');
   if(JSON.stringify(publicRows).includes('@example.com')||ids.some(id=>JSON.stringify(publicRows).includes(id))) throw new Error('Leaderboard exposed private identity data');
   if(publicRows[0].username!==users[0].username||Number(publicRows[0].net_worth)!==20000+prices[0].price) throw new Error('Net-worth formula failed');
@@ -68,7 +68,67 @@ try {
 
   const contributor=ok(await signed.from('badges').select('id').eq('slug','contributor').single());
   if(!(await signed.from('user_badges').insert({user_id:current.id,badge_id:contributor.id,source:'admin'})).error) throw new Error('Badge assignment bypassed admin controls');
-  console.log('Community preferences, public leaderboard privacy, ranking and dynamic badge checks passed.');
+
+  // Administrators are removed from the eligible set before the rank is computed.
+  const leader=users[0];
+  const richAdmin=users[49];
+  ok(await admin.from('account_wallets').update({balance:9999999}).eq('user_id',richAdmin.id));
+  ok(await admin.from('profiles').update({is_admin:true}).eq('id',richAdmin.id));
+  const adminFreeRows=ok(await anonymous.rpc('get_global_leaderboard',{search_username:null}));
+  if(adminFreeRows.some(row=>row.username===richAdmin.username)) throw new Error('Administrator appeared in the leaderboard');
+  if(adminFreeRows[0].username!==leader.username||Number(adminFreeRows[0].rank)!==1) throw new Error('Administrator net worth altered rank #1');
+  if(adminFreeRows.length!==50||adminFreeRows.some((row,index)=>Number(row.rank)!==index+1)) throw new Error('Ranks were not renumbered without administrators');
+  if(ok(await anonymous.rpc('get_global_leaderboard',{search_username:richAdmin.username})).length) throw new Error('Administrator was searchable in the leaderboard');
+
+  // Public lineups: default private, owner-controlled, authenticated readers only.
+  const owner=users[0];
+  const ownerClient=createClient(url,anon,{auth:{persistSession:false}});
+  ok(await ownerClient.auth.signInWithPassword({email:`${owner.username}@example.com`,password}));
+  if(ok(await admin.from('profiles').select('public_lineup_enabled').eq('id',owner.id).single()).public_lineup_enabled) throw new Error('Public lineup did not default to false');
+  if(!(await signed.rpc('get_public_lineup',{target_username:owner.username})).error) throw new Error('Private lineup was readable');
+  if(!(await anonymous.rpc('get_public_lineup',{target_username:owner.username})).error) throw new Error('Anonymous read of a lineup succeeded');
+  if(!(await signed.from('profiles').update({public_lineup_enabled:true}).eq('id',owner.id)).error) throw new Error('Direct visibility write bypassed the RPC');
+  // The RPC takes no target: a caller can only ever flip their own row.
+  ok(await signed.rpc('set_public_lineup_visibility',{enabled:true}));
+  if(ok(await admin.from('profiles').select('public_lineup_enabled').eq('id',owner.id).single()).public_lineup_enabled) throw new Error('A user changed another account visibility');
+  ok(await signed.rpc('set_public_lineup_visibility',{enabled:false}));
+
+  ok(await ownerClient.rpc('set_public_lineup_visibility',{enabled:true}));
+  const visible=ok(await signed.rpc('get_public_lineup',{target_username:owner.username.toUpperCase()}));
+  if(visible.username!==owner.username||Number(visible.rank)!==1||visible.lineup.length!==1) throw new Error('Public lineup read failed');
+  if(visible.lineup[0].playerId!==prices[0].id||visible.lineup[0].currentPrice!==prices[0].price) throw new Error('Public lineup content failed');
+  const payload=JSON.stringify(visible);
+  for(const forbidden of ['@example.com','acquired','Pnl','pnl','balance','wallet','locked','userId','user_id',owner.id]) {
+    if(payload.includes(forbidden)) throw new Error(`Public lineup exposed private data: ${forbidden}`);
+  }
+  const lineupKeys=['currentPrice','handle','photoUrl','playerId','rarity','realName','team'];
+  if(JSON.stringify(Object.keys(visible.lineup[0]).sort())!==JSON.stringify(lineupKeys)) throw new Error('Public lineup returned unexpected player fields');
+  if(JSON.stringify(Object.keys(visible).sort())!==JSON.stringify(['badges','lineup','nameStyle','netWorth','rank','username'])) throw new Error('Public lineup returned unexpected fields');
+
+  // A lineup with no players is a clean empty state, not an error.
+  const emptyOwner=users[1];
+  const emptyClient=createClient(url,anon,{auth:{persistSession:false}});
+  ok(await emptyClient.auth.signInWithPassword({email:`${emptyOwner.username}@example.com`,password}));
+  ok(await emptyClient.rpc('set_public_lineup_visibility',{enabled:true}));
+  const emptyLineup=ok(await signed.rpc('get_public_lineup',{target_username:emptyOwner.username}));
+  if(!Array.isArray(emptyLineup.lineup)||emptyLineup.lineup.length) throw new Error('Empty lineup state failed');
+
+  // Ineligible targets are indistinguishable from private ones.
+  for(const target of [synthetic,suspended,banned,richAdmin]) {
+    ok(await admin.from('profiles').update({public_lineup_enabled:true}).eq('id',target.id));
+    const denied=await signed.rpc('get_public_lineup',{target_username:target.username});
+    if(!denied.error) throw new Error(`Ineligible target lineup was readable: ${target.username}`);
+    if(denied.error.message!==(await signed.rpc('get_public_lineup',{target_username:`ghost${suffix}`})).error?.message) {
+      throw new Error('Lineup denial distinguishes private accounts from unknown ones');
+    }
+  }
+
+  // Turning visibility off must take effect on the very next read.
+  ok(await ownerClient.rpc('set_public_lineup_visibility',{enabled:false}));
+  if(!(await signed.rpc('get_public_lineup',{target_username:owner.username})).error) throw new Error('Disabled visibility remained readable');
+
+  ok(await admin.from('profiles').update({is_admin:false}).eq('id',richAdmin.id));
+  console.log('Community preferences, public leaderboard privacy, ranking, lineup visibility and dynamic badge checks passed.');
 } finally {
   if(ids.length) await admin.from('profiles').update({account_status:'suspended',is_admin:false}).in('id',ids);
   for(const id of ids) await admin.auth.admin.updateUserById(id,{ban_duration:'876000h',user_metadata:{test_marker:'CHECK_COMMUNITY_RETIRED'}});
