@@ -3,6 +3,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
 import { AccountPortfolio, League, LeagueSettings, Player, Profile } from '@/lib/types';
+import { COMMUNICATION_CONSENT_VERSION } from '@/lib/community';
 import { getAllMarketPlayers } from '@/lib/market-players';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from './LocaleContext';
@@ -30,6 +31,7 @@ interface GameState {
   accountBuyPlayer: (playerId: string) => Promise<string | null>;
   accountSellPlayer: (playerId: string) => Promise<string | null>;
   saveProfile: (username: string, locale: string) => Promise<string | null>;
+  saveCommunicationPreference: (enabled: boolean) => Promise<string | null>;
   mockTopUp: (amount: number) => Promise<string | null>;
   buyNameStyle: (style: string) => Promise<string | null>;
   refresh: () => Promise<void>;
@@ -72,7 +74,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const loadCloudGame = useCallback(async (id: string, preferredLeague?: string | null) => {
     if (!supabase) return;
     const [profileResult, marketRows, membershipsResult, portfolioResult] = await Promise.all([
-      supabase.from('profiles').select('username,locale,reward_points,experience_points,is_admin,wallet_cents,name_style').eq('id', id).single(),
+      supabase.from('profiles').select('username,locale,reward_points,experience_points,is_admin,wallet_cents,name_style,community_email_opt_in,community_email_opted_in_at,community_email_opted_out_at').eq('id', id).single(),
       getAllMarketPlayers(supabase),
       supabase.from('league_members').select('league_id,coins,reserved_coins').eq('user_id', id),
       supabase.rpc('get_account_portfolio'),
@@ -122,6 +124,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       username: profileResult.data.username, locale: profileResult.data.locale,
       rewardPoints: profileResult.data.reward_points, experiencePoints: profileResult.data.experience_points,
       isAdmin: profileResult.data.is_admin, walletCents: profileResult.data.wallet_cents, nameStyle: profileResult.data.name_style,
+      communityEmailOptIn:profileResult.data.community_email_opt_in,
+      communityEmailOptedInAt:profileResult.data.community_email_opted_in_at,
+      communityEmailOptedOutAt:profileResult.data.community_email_opted_out_at,
     };
     setPlayers(market);
     setLeagues(leagueList);
@@ -239,6 +244,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     leaveLeague: id => rpcAndRefresh('leave_league', { target_league: id }),
     cancelLeague: id => rpcAndRefresh('cancel_league', { target_league: id }),
     saveProfile: (username, locale) => rpcAndRefresh('update_profile', { new_username: username, new_locale: locale }),
+    saveCommunicationPreference: enabled => rpcAndRefresh('update_communication_preferences', {
+      enabled, consent_version:COMMUNICATION_CONSENT_VERSION, consent_source:'account_settings',
+    }),
     mockTopUp: amount => rpcAndRefresh('mock_top_up', { amount_cents: amount, request_id:crypto.randomUUID() }),
     buyNameStyle: style => rpcAndRefresh('buy_name_style', { style }),
     refresh, signOut,

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Locale } from '@/lib/i18n';
+import { communityCopy, DISCORD_URL } from '@/lib/community';
 import { marketingPath } from '@/lib/marketing';
 import { EPIC_FAN_DISCLAIMER } from '@/lib/legal';
 
@@ -13,5 +14,5 @@ const copy = {
 
 export default function MarketingFooter({ locale }: { locale: Locale }) {
   const text=copy[locale];
-  return <footer className="marketing-footer"><div><Link href={marketingPath(locale)} className="logo"><span>FANTA</span>FORT</Link><p>{text.note}</p><p>{EPIC_FAN_DISCLAIMER}</p></div><nav aria-label="Legal"><Link href="/about">{text.info}</Link><Link href="/methodology">{text.method}</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/cookies">{text.cookies}</Link><Link href="/support">Support</Link></nav><small>© 2026 FantaFort · All rights reserved</small></footer>;
+  return <footer className="marketing-footer"><div><Link href={marketingPath(locale)} className="logo"><span>FANTA</span>FORT</Link><p>{text.note}</p><p>{EPIC_FAN_DISCLAIMER}</p></div><nav aria-label="Legal"><Link href="/about">{text.info}</Link><Link href="/methodology">{text.method}</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/cookies">{text.cookies}</Link><Link href="/support">Support</Link><a href={DISCORD_URL} target="_blank" rel="noopener noreferrer">Discord</a></nav><small>© 2026 FantaFort · All rights reserved · <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer">{communityCopy[locale].discord}</a></small></footer>;
 }

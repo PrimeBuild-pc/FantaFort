@@ -7,6 +7,7 @@ import { GameProvider, useGame } from "@/context/GameContext";
 import { LocaleProvider, useLocale } from "@/context/LocaleContext";
 import { Locale, locales } from "@/lib/i18n";
 import { getLevelProgress } from "@/lib/types";
+import BetaCommunityNotice from "@/components/BetaCommunityNotice";
 import CookieNotice from "@/components/CookieNotice";
 import LegalFooter from "@/components/LegalFooter";
 import OnboardingGuide from "@/components/OnboardingGuide";
@@ -59,7 +60,7 @@ function RouteShell({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const publicRoute = publicRoutes.has(pathname) || publicPrefix.test(pathname);
     if (publicRoute) return children;
-    return <><LanguageSwitcher /><AuthGuard>{children}<OnboardingGuide /><LevelUpNotice /><CookieNotice /><LegalFooter /></AuthGuard></>;
+    return <><LanguageSwitcher /><AuthGuard>{children}<BetaCommunityNotice /><OnboardingGuide /><LevelUpNotice /><CookieNotice /><LegalFooter /></AuthGuard></>;
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {

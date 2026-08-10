@@ -149,6 +149,10 @@ h3 { font-size: 1.7rem; }
 .status.completed { color:#93a0b2; }
 .notice { margin:1rem 0; padding:1rem; color:#d9eeff; background:rgba(32,168,255,.13); border-left:4px solid var(--blue); }
 .notice.error { background:rgba(255,70,90,.14); border-color:#ff465f; }
+.beta-community-notice { position:fixed; z-index:240; left:1rem; right:1rem; bottom:1rem; width:min(980px,calc(100% - 2rem)); display:grid; grid-template-columns:1fr auto auto auto; align-items:center; gap:1rem; margin:auto; padding:1rem; color:white; background:#08172b; border:1px solid var(--line); border-left:5px solid var(--cyan); box-shadow:0 18px 60px rgba(0,0,0,.55); }
+.beta-community-notice p { margin-top:.2rem; color:var(--muted); font-size:.78rem; }
+.beta-community-notice>a:not(.epic-button) { color:var(--cyan); font-size:.78rem; font-weight:800; }
+.beta-community-notice>button { width:44px; height:44px; border:0; color:var(--muted); background:transparent; cursor:pointer; font-size:1.5rem; }
 .empty-state { min-height:300px; display:grid; place-content:center; justify-items:center; gap:1rem; text-align:center; color:var(--muted); background:rgba(11,30,54,.65); border:1px dashed var(--line); }
 .empty-state.compact { min-height:160px; }
 
@@ -244,6 +248,10 @@ form { display:grid; gap:1rem; }
 .wallet-packages { display:flex; gap:.6rem; margin:1.25rem 0; flex-wrap:wrap; }
 .wallet-packages button, .cosmetic-list button { min-height:42px; border:1px solid var(--line); color:white; background:#0a192d; padding:.65rem .8rem; cursor:pointer; }
 .cosmetic-list { display:grid; gap:.6rem; margin-top:1.25rem; }
+.communication-panel { display:grid; grid-template-columns:1fr 1fr; gap:2rem; margin-top:1.5rem; }
+.communication-panel>div { display:grid; align-content:start; gap:1rem; }
+.communication-panel p,.communication-panel small { color:var(--muted); line-height:1.55; }
+.communication-panel .epic-button { width:max-content; }
 .performance-panel { margin-top:1.5rem; }
 .performance-chart { height:260px; display:flex; align-items:end; gap:clamp(.4rem,2vw,1.2rem); padding-top:2rem; }
 .chart-column { height:100%; min-width:0; flex:1; display:flex; flex-direction:column; justify-content:end; align-items:center; gap:.35rem; }
@@ -297,7 +305,7 @@ tbody tr:hover { background:rgba(32,168,255,.08); }
 .cookie-notice p { color:var(--muted); font-size:.76rem; line-height:1.4; }
 .cookie-notice > a { color:var(--cyan); font-size:.8rem; text-decoration:underline; }
 .legal-footer { min-height:74px; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:1.2rem; padding:1rem max(1rem,calc((100% - 1500px)/2)); color:var(--muted); background:#07111f; border-top:1px solid var(--line); font-size:.75rem; }
-.legal-footer nav { display:flex; justify-content:center; gap:1rem; }
+.legal-footer nav { display:flex; flex-wrap:wrap; justify-content:center; gap:1rem; }
 .legal-footer a { color:#d6e2f1; }
 .legal-footer a:hover { color:var(--cyan); }
 .legal-footer small { max-width:430px; text-align:right; }
@@ -415,7 +423,7 @@ tbody tr:hover { background:rgba(32,168,255,.08); }
   .player-grid { grid-template-columns:1fr; }
   .market-pagination { justify-content:start; }
   .market-pagination button span { display:none; }
-  .hub-grid,.account-grid,.account-detail-grid,.strategy-panel,.event-hero,.wallet-grid,.auction-panel { grid-template-columns:1fr; }
+  .hub-grid,.account-grid,.account-detail-grid,.communication-panel,.strategy-panel,.event-hero,.wallet-grid,.auction-panel { grid-template-columns:1fr; }
   .admin-stats { grid-template-columns:1fr 1fr; }
   .admin-user-filters,.admin-detail-list>div,.audit-list header { grid-template-columns:1fr; }
   .error-log article { grid-template-columns:1fr; gap:.25rem; }
@@ -446,8 +454,9 @@ tbody tr:hover { background:rgba(32,168,255,.08); }
   .standing-row { grid-template-columns:45px 1fr 70px; }
   .score-block.projection { display:none; }
   .filters { grid-template-columns:1fr; }
-  .cookie-notice { grid-template-columns:1fr; gap:.65rem; }
-  .cookie-notice .epic-button { width:100%; }
+  .cookie-notice,.beta-community-notice { grid-template-columns:1fr; gap:.65rem; bottom:5rem; }
+  .cookie-notice .epic-button,.beta-community-notice .epic-button { width:100%; }
+  .beta-community-notice>button { position:absolute; top:.25rem; right:.25rem; }
   .legal-footer { grid-template-columns:1fr; text-align:center; }
   .legal-footer small { max-width:none; text-align:center; }
   .onboarding-dialog { padding:1.4rem; }
@@ -485,11 +494,13 @@ tbody tr:hover { background:rgba(32,168,255,.08); }
 .landing-value aside .eyebrow { margin:0; }
 .landing-value aside p:not(.eyebrow) { max-width:760px; color:#c4d3e5; line-height:1.6; }
 .landing-value aside small { color:var(--muted); }
+.community-callout { display:grid; grid-template-columns:1fr auto; align-items:center; gap:2rem; border-top:1px solid var(--line); }
+.community-callout p { max-width:680px; margin-top:1rem; color:var(--muted); line-height:1.6; }
 .marketing-cta { display:grid; justify-items:center; gap:1.2rem; padding:clamp(4rem,8vw,7rem) 1rem; text-align:center; background:linear-gradient(120deg,#1d368b,#642a93); }
 .marketing-cta p { max-width:600px; color:#dbe8f7; line-height:1.6; }
 .marketing-footer { min-height:110px; display:grid; grid-template-columns:1fr auto; align-items:center; gap:1rem 3rem; padding:2rem max(1rem,calc((100% - 1280px)/2)); color:var(--muted); background:#07111f; border-top:1px solid var(--line); }
 .marketing-footer > div { display:flex; align-items:center; gap:1.2rem; }
-.marketing-footer nav { display:flex; gap:1rem; }
+.marketing-footer nav { display:flex; flex-wrap:wrap; gap:1rem; }
 .marketing-footer small { grid-column:1/-1; }
 .marketing-article { padding:clamp(3rem,7vw,6rem) 0; }
 .marketing-article > header { margin-bottom:4rem; }
@@ -538,7 +549,7 @@ tbody tr:hover { background:rgba(32,168,255,.08); }
   .marketing-header > nav { order:3; width:100%; overflow:auto; }
   .marketing-header > .epic-button { margin-left:auto; }
   .marketing-hero { min-height:580px; }
-  .landing-steps ol,.landing-value { grid-template-columns:1fr; }
+  .landing-steps ol,.landing-value,.community-callout { grid-template-columns:1fr; }
   .landing-value { gap:2.5rem; }
   .guide-grid { grid-template-columns:1fr; }
   .player-profile > header { grid-template-columns:1fr; }

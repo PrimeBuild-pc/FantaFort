@@ -30,6 +30,9 @@ export interface Profile {
   isAdmin: boolean;
   walletCents: number;
   nameStyle: 'default' | 'storm' | 'victory' | 'legendary';
+  communityEmailOptIn: boolean;
+  communityEmailOptedInAt: string | null;
+  communityEmailOptedOutAt: string | null;
 }
 
 export function getLevelProgress(experiencePoints: number) {

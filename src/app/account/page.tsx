@@ -7,6 +7,7 @@ import Link from 'next/link';
 import Header from '@/components/Header';
 import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
+import { communityCopy, DISCORD_URL } from '@/lib/community';
 import { Locale, locales } from '@/lib/i18n';
 import { isStrongPassword } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
@@ -26,7 +27,7 @@ const deletionCopy:Record<Locale,{title:string;help:string;action:string;confirm
 
 export default function AccountPage() {
   const router = useRouter();
-  const { profile, userEmail, team, leagues, saveProfile, mockTopUp, buyNameStyle, signOut } = useGame();
+  const { profile, userEmail, team, leagues, saveProfile, saveCommunicationPreference, mockTopUp, buyNameStyle, signOut } = useGame();
   const { locale, setLocale, t } = useLocale();
   const [username, setUsername] = useState(profile?.username || '');
   const [selectedLocale, setSelectedLocale] = useState<Locale>(profile?.locale || locale);
@@ -36,8 +37,9 @@ export default function AccountPage() {
   const [departures, setDepartures] = useState<Departure[]>([]);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [communityEmail, setCommunityEmail] = useState(false);
 
-  useEffect(() => { if (profile) { setUsername(profile.username); setSelectedLocale(profile.locale); } }, [profile]);
+  useEffect(() => { if (profile) { setUsername(profile.username); setSelectedLocale(profile.locale); setCommunityEmail(profile.communityEmailOptIn); } }, [profile]);
   useEffect(() => {
     if (!supabase) return;
     Promise.all([
@@ -58,6 +60,10 @@ export default function AccountPage() {
   const run = async (action:() => Promise<string|null>) => { const error = await action(); setMessage(error || '✓'); };
   const logout = async () => { await signOut(); router.replace('/auth'); router.refresh(); };
   const submit = async (event:FormEvent) => { event.preventDefault(); const error = await saveProfile(username, selectedLocale); setMessage(error || '✓'); if (!error) setLocale(selectedLocale); };
+  const saveEmailPreference = async () => {
+    const error = await saveCommunicationPreference(communityEmail);
+    setMessage(error || (communityEmail ? communityCopy[locale].emailOn : communityCopy[locale].emailOff));
+  };
   const changePassword = async (event:FormEvent) => {
     event.preventDefault(); if (!supabase || !userEmail) return;
     if (!isStrongPassword(newPassword)) return setMessage(t('invalidPassword'));
@@ -96,6 +102,8 @@ export default function AccountPage() {
       <section className="epic-panel security-panel"><div className="eyebrow">SECURITY</div><h2>{t('security')}</h2><form onSubmit={changePassword}><label>{t('currentPassword')}<input type="password" minLength={8} maxLength={128} value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} autoComplete="current-password" required /></label><label>{t('newPassword')}<input type="password" minLength={10} maxLength={128} value={newPassword} onChange={event => setNewPassword(event.target.value)} autoComplete="new-password" required /><small>{t('passwordRules')}</small></label><button className="epic-button secondary">{t('changePassword')}</button></form><div className="danger-zone"><h3>{deletionCopy[locale].title}</h3><p>{deletionCopy[locale].help}</p><button className="danger-button" type="button" onClick={requestDeletion}>{deletionCopy[locale].action}</button><small><Link href="/privacy">Privacy</Link> · <a href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a></small></div></section>
       <section className="epic-panel progression-panel"><div className="eyebrow">XP</div><h2>{t('progression')}</h2><p>{t('xpRules')}</p><div className="activity-list">{xpHistory.length ? xpHistory.map(event => <article key={event.id}><span><strong>{event.type === 'league_won' ? t('leagueWon') : t('leagueCompleted')}</strong><small>{event.leagues?.name || t('league')}</small></span><b>+{event.amount} XP</b></article>) : <p>{t('noXpHistory')}</p>}</div></section>
     </div>
+
+    <section className="epic-panel communication-panel" id="communication"><div><h2>{communityCopy[locale].title}</h2><p>{communityCopy[locale].body}</p><a className="epic-button secondary" href={DISCORD_URL} target="_blank" rel="noopener noreferrer">{communityCopy[locale].discord}</a></div><div><h2>{communityCopy[locale].emailTitle}</h2><label className="checkbox-label"><input type="checkbox" checked={communityEmail} onChange={event => setCommunityEmail(event.target.checked)} /> <span>{communityCopy[locale].emailBody}</span></label><button type="button" className="epic-button" onClick={saveEmailPreference} disabled={communityEmail === profile?.communityEmailOptIn}>{communityCopy[locale].emailSave}</button>{profile?.communityEmailOptedInAt && <small>{new Date(profile.communityEmailOptedInAt).toLocaleString(locale)}</small>}</div></section>
 
     {(closedLeagues.length > 0 || departures.length > 0) && <section className="epic-panel league-history-panel"><div className="eyebrow">ARCHIVE</div><h2>{t('leagueHistory')}</h2><div className="activity-list">{closedLeagues.map(league => <Link href={`/leagues/${league.id}`} key={league.id}><span><strong>{league.name}</strong><small>{t(league.status)}</small></span><b>→</b></Link>)}{departures.map(item => <article key={`left-${item.id}`}><span><strong>{item.league_name}</strong><small>{t('leftLeague')} · {new Date(item.left_at).toLocaleDateString(locale)}</small></span></article>)}</div></section>}
 
