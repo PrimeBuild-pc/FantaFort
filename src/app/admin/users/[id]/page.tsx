@@ -13,7 +13,7 @@ type UserDetail = {
   createdAt:string; lastSignInAt:string|null; emailConfirmedAt:string|null;
   balance:number|null; lockedBalance:number|null; rewardPoints:number; experiencePoints:number;
   communityEmailOptIn:boolean; communityEmailOptedInAt:string|null; communityEmailOptedOutAt:string|null;
-  badges:PublicBadge[]; availableBadges:(PublicBadge&{assignmentType:'automatic'|'manual'})[];
+  badges:PublicBadge[]; availableBadges:(PublicBadge&{assignmentType:'automatic'|'verified'|'manual'})[];
 };
 type Impact = Record<string, number|boolean>;
 
@@ -26,6 +26,7 @@ export default function AdminUserDetailPage() {
   const [message, setMessage] = useState('');
   const [reason, setReason] = useState('');
   const [mutationsEnabled, setMutationsEnabled] = useState(false);
+  const [badgeMutationsEnabled, setBadgeMutationsEnabled] = useState(false);
   const [anonymizationEnabled, setAnonymizationEnabled] = useState(false);
   const [pending, setPending] = useState(false);
   const [delta, setDelta] = useState(0);
@@ -45,8 +46,9 @@ export default function AdminUserDetailPage() {
   useEffect(() => {
     load().catch(() => setMessage('Account detail unavailable'));
     adminFetch('/api/admin/session').then(response => response?.ok ? response.json() : null)
-      .then((result:{ mutationsEnabled?:boolean; anonymizationEnabled?:boolean }|null) => {
+      .then((result:{ mutationsEnabled?:boolean; badgeMutationsEnabled?:boolean; anonymizationEnabled?:boolean }|null) => {
         setMutationsEnabled(result?.mutationsEnabled === true);
+        setBadgeMutationsEnabled(result?.badgeMutationsEnabled === true);
         setAnonymizationEnabled(result?.anonymizationEnabled === true);
       });
   }, [load]);
@@ -88,7 +90,7 @@ export default function AdminUserDetailPage() {
   };
 
   const setBadge = async (assign:boolean) => {
-    if (!user || !mutationsEnabled || user.role==='admin' || user.status!=='active' || !selectedBadge
+    if (!user || !badgeMutationsEnabled || user.role==='admin' || user.status!=='active' || !selectedBadge
       || reason.trim().length<3 || !/^\d{6}$/.test(mfaCode)
       || !window.confirm(`${assign?'Assign':'Remove'} ${selectedBadge} ${assign?'to':'from'} ${user.username}?`)) return;
     setPending(true); setMessage('');
@@ -122,8 +124,12 @@ export default function AdminUserDetailPage() {
     await load();
   };
 
+  // Reason and MFA inputs are shared by every mutation, so they stay usable when either capability is on.
+  const anyMutationEnabled = mutationsEnabled || badgeMutationsEnabled;
+
   return <div className="app-shell"><Header /><main className="container page-content">
-    <div className="page-title"><div className="eyebrow">ADMIN · USER DETAIL</div><h1>{user?.username || 'Account'}</h1><p>{mutationsEnabled ? 'Sensitive actions require an explicit reason and confirmation.' : 'Read-only view. Mutations are disabled by server configuration.'}</p></div>
+    <div className="page-title"><div className="eyebrow">ADMIN · USER DETAIL</div><h1>{user?.username || 'Account'}</h1><p>{anyMutationEnabled ? 'Sensitive actions require an explicit reason and confirmation.' : 'Read-only view. Mutations are disabled by server configuration.'}</p></div>
+    <p className="notice">General admin mutations: <strong>{mutationsEnabled?'enabled':'disabled (fail-closed)'}</strong> · Badge mutations: <strong>{badgeMutationsEnabled?'enabled':'disabled (fail-closed)'}</strong>.</p>
     {message && <p className="notice error" role="alert">{message}</p>}
     {user && <><section className="admin-stats">
       <div><small>Status</small><b>{user.status}</b></div><div><small>Role</small><b>{user.role}</b></div>
@@ -135,9 +141,9 @@ export default function AdminUserDetailPage() {
       <div><dt>Last access</dt><dd>{user.lastSignInAt ? new Date(user.lastSignInAt).toLocaleString() : '—'}</dd></div>
       <div><dt>Email confirmed</dt><dd>{user.emailConfirmedAt ? new Date(user.emailConfirmedAt).toLocaleString() : 'No'}</dd></div>
       <div><dt>Updates opt-in</dt><dd>{user.communityEmailOptedInAt ? new Date(user.communityEmailOptedInAt).toLocaleString() : 'Never'}</dd></div><div><dt>Updates opt-out</dt><dd>{user.communityEmailOptedOutAt ? new Date(user.communityEmailOptedOutAt).toLocaleString() : '—'}</dd></div>
-    </dl></section><section className="epic-panel"><div className="section-heading"><h2>Public badges</h2><Link href="/admin/badges">Founding 50 preview</Link></div><BadgeList badges={user.badges}/><div className="badge-admin-preview"><label>Badge<select value={selectedBadge} onChange={event=>setSelectedBadge(event.target.value)} disabled={!mutationsEnabled||pending}>{user.availableBadges.map(badge=><option value={badge.slug} key={badge.slug}>{badge.name} · {badge.assignmentType}</option>)}</select></label><p>{user.availableBadges.find(badge=>badge.slug===selectedBadge)?.description}</p><div className="form-actions"><button className="epic-button" disabled={!mutationsEnabled||pending||user.role==='admin'||user.status!=='active'||!selectedBadge||reason.trim().length<3||mfaCode.length!==6} onClick={()=>setBadge(true)}>Assign badge</button><button className="epic-button secondary" disabled={!mutationsEnabled||pending||!user.badges.some(badge=>badge.slug===selectedBadge)||reason.trim().length<3||mfaCode.length!==6} onClick={()=>setBadge(false)}>Remove badge</button></div><small>{mutationsEnabled?'Reason and MFA code below are required.':'Prepared only: badge mutations remain fail-closed.'}</small></div></section></>}
+    </dl></section><section className="epic-panel"><div className="section-heading"><h2>Public badges</h2><Link href="/admin/badges">Founding 50 preview</Link></div><BadgeList badges={user.badges}/><div className="badge-admin-preview"><label>Badge<select value={selectedBadge} onChange={event=>setSelectedBadge(event.target.value)} disabled={!badgeMutationsEnabled||pending}>{user.availableBadges.map(badge=><option value={badge.slug} key={badge.slug}>{badge.name} · {badge.assignmentType}</option>)}</select></label><p>{user.availableBadges.find(badge=>badge.slug===selectedBadge)?.description}</p><div className="form-actions"><button className="epic-button" disabled={!badgeMutationsEnabled||pending||user.role==='admin'||user.status!=='active'||!selectedBadge||reason.trim().length<3||mfaCode.length!==6} onClick={()=>setBadge(true)}>Assign badge</button><button className="epic-button secondary" disabled={!badgeMutationsEnabled||pending||!user.badges.some(badge=>badge.slug===selectedBadge)||reason.trim().length<3||mfaCode.length!==6} onClick={()=>setBadge(false)}>Remove badge</button></div><small>{badgeMutationsEnabled?'Reason and MFA code below are required. Founding 50 is accepted only for verified preview candidates.':'Read-only: badge mutations are disabled by server configuration (ADMIN_BADGE_MUTATIONS_ENABLED).'}</small></div></section></>}
     {impact && <section className="epic-panel"><h2>Linked data impact</h2><div className="admin-stats">{Object.entries(impact).map(([key,value]) => <div key={key}><small>{key}</small><b>{String(value)}</b></div>)}</div></section>}
-    {user && <section className="epic-panel danger-zone"><h2>Account controls</h2><label>Mandatory reason<textarea value={reason} onChange={event => setReason(event.target.value)} minLength={3} maxLength={500} disabled={!mutationsEnabled || pending} /></label><label>MFA code for sensitive actions<input inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={mfaCode} onChange={event => setMfaCode(event.target.value.replace(/\D/g,'').slice(0,6))} disabled={!mutationsEnabled || pending} /></label><div className="form-actions">
+    {user && <section className="epic-panel danger-zone"><h2>Account controls</h2><label>Mandatory reason<textarea value={reason} onChange={event => setReason(event.target.value)} minLength={3} maxLength={500} disabled={!anyMutationEnabled || pending} /></label><label>MFA code for sensitive actions<input inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={mfaCode} onChange={event => setMfaCode(event.target.value.replace(/\D/g,'').slice(0,6))} disabled={!anyMutationEnabled || pending} /></label><div className="form-actions">
       {user.status === 'active' ? <button className="danger-button" disabled={!mutationsEnabled || pending || user.role === 'admin' || reason.trim().length < 3 || mfaCode.length !== 6} onClick={() => run('suspend','Suspend')}>Suspend</button> : <button className="epic-button" disabled={!mutationsEnabled || pending || user.role === 'admin' || reason.trim().length < 3 || mfaCode.length !== 6} onClick={() => run('reactivate','Reactivate')}>Reactivate</button>}
       <button className="epic-button secondary" disabled={!mutationsEnabled || pending || user.role === 'admin' || reason.trim().length < 3 || mfaCode.length !== 6} onClick={() => run('revoke-sessions','Revoke sessions for')}>Revoke sessions</button>
       <button className="epic-button secondary" disabled={!mutationsEnabled || pending || user.role === 'admin' || reason.trim().length < 3 || mfaCode.length !== 6} onClick={() => run('recovery','Request recovery for')}>Request recovery email</button>
