@@ -57,7 +57,15 @@ Automated evidence:
 - the prior audit established that current local Supabase values do not match the historical values;
 - both Vercel projects have no service-role/secret key, JWT secret, database password/URL or PayPal client secret.
 
-PayPal does not expose sufficient unauthenticated evidence to prove revocation without using the historical credential. Provider-console confirmation remains manual; the application has no PayPal runtime integration.
+Final PayPal decommissioning update (2026-08-10):
+
+- the tracked repository, package manifests, lockfile, runtime routes, webhook/API paths, environment example, workflows and application documentation contain no PayPal integration, SDK, dependency, checkout or real-payment implementation;
+- neither the repository nor either Vercel project contains a PayPal client ID, secret or `PAYPAL_*` environment variable; the remaining security-test pattern only prevents such a value from reaching a client response;
+- the manual PayPal Developer Dashboard control found no Live REST API app;
+- Sandbox contains only PayPal's provider-generated Default Application, which FantaFort does not use; its existing secret was not read, tested, replaced or supplemented, and no new credential was created during remediation;
+- **historical PayPal environment not provable** from the retained redacted evidence. No authentication was attempted with the historical credential.
+
+The old integration is permanently decommissioned. The provider-generated Sandbox default is non-blocking because it is unused and cannot be removed from the observed UI without creating or using credentials.
 
 ## Accepted residual risk
 
@@ -72,5 +80,4 @@ PayPal does not expose sufficient unauthenticated evidence to prove revocation w
 ## Manual evidence still required
 
 - Independent collaborator approval is required by the protected-branch ruleset for every hardening PR.
-- PayPal Developer Dashboard must confirm the historical app/client secret is deleted or regenerated; record only date/app status, never the credential.
 - Keep an offline/password-manager copy of the `age` backup identity; repository and cloud artifacts must never contain it.

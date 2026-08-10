@@ -11,8 +11,8 @@
     <img alt="License: Proprietary" src="https://img.shields.io/badge/license-proprietary-8b5cf6?style=for-the-badge" />
   </p>
   <p>
-    <a href="https://github.com/PrimeBuild-pc/FantaFort/actions/workflows/revival-ci.yml"><img alt="CI status" src="https://github.com/PrimeBuild-pc/FantaFort/actions/workflows/revival-ci.yml/badge.svg?branch=revival-next" /></a>
-    <a href="https://github.com/PrimeBuild-pc/FantaFort/actions/workflows/codeql.yml"><img alt="CodeQL status" src="https://github.com/PrimeBuild-pc/FantaFort/actions/workflows/codeql.yml/badge.svg?branch=revival-next" /></a>
+    <a href="https://github.com/PrimeBuild-pc/FantaFort/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/PrimeBuild-pc/FantaFort/actions/workflows/ci.yml/badge.svg?branch=main" /></a>
+    <a href="https://github.com/PrimeBuild-pc/FantaFort/actions/workflows/codeql.yml"><img alt="CodeQL status" src="https://github.com/PrimeBuild-pc/FantaFort/actions/workflows/codeql.yml/badge.svg?branch=main" /></a>
     <a href="SECURITY.md"><img alt="Security policy" src="https://img.shields.io/badge/security-policy-16a34a" /></a>
   </p>
 </div>
