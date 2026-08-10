@@ -12,7 +12,7 @@ import CookieNotice from "@/components/CookieNotice";
 import LegalFooter from "@/components/LegalFooter";
 import OnboardingGuide from "@/components/OnboardingGuide";
 
-const publicRoutes = new Set(["/", "/auth", "/about", "/cookies", "/how-it-works", "/methodology"]);
+const publicRoutes = new Set(["/", "/auth", "/about", "/cookies", "/how-it-works", "/leaderboard", "/methodology"]);
 const publicPrefix = /^\/(?:it|es|de|fr)(?:\/|$)|^\/(?:guides|players)(?:\/|$)/;
 
 function LanguageSwitcher() {
