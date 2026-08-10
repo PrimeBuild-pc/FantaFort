@@ -54,6 +54,8 @@ Initial definitions:
 
 Manual assignment/removal is prepared behind the existing fail-closed admin mutation system with a badge-specific MFA scope, required reason, target binding, idempotency and audit. It remains operationally disabled while both mutation switches are false.
 
+Follow-up: badge administration is no longer coupled to the general admin mutation kill switch. It is a separate least-privilege capability (`ADMIN_BADGE_MUTATIONS_ENABLED` plus `admin_runtime_config.badge_mutations_enabled`), and `founding-50` is now `assignment_type = 'verified'`. See `docs/ADMIN_BADGE_CAPABILITY.md`.
+
 ## Database and verification
 
 Every new table has explicit RLS, grants and function ACLs. Public leaderboard and badge display use minimal RPC output; browsers never gain broad reads on wallets, holdings, profiles or Auth. `SECURITY DEFINER` functions use a fixed `search_path`, and privileged helpers retain no `PUBLIC` execute.
