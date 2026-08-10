@@ -9,6 +9,7 @@ import Header from '@/components/Header';
 import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
 import { communityCopy, DISCORD_URL } from '@/lib/community';
+import { lineupCopy } from '@/lib/lineup';
 import { Locale, locales } from '@/lib/i18n';
 import { isStrongPassword } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
@@ -29,7 +30,7 @@ const deletionCopy:Record<Locale,{title:string;help:string;action:string;confirm
 
 export default function AccountPage() {
   const router = useRouter();
-  const { profile, userEmail, team, leagues, saveProfile, saveCommunicationPreference, mockTopUp, buyNameStyle, signOut } = useGame();
+  const { profile, userEmail, team, leagues, saveProfile, saveCommunicationPreference, savePublicLineupVisibility, mockTopUp, buyNameStyle, signOut } = useGame();
   const { locale, setLocale, t } = useLocale();
   const [username, setUsername] = useState(profile?.username || '');
   const [selectedLocale, setSelectedLocale] = useState<Locale>(profile?.locale || locale);
@@ -40,9 +41,10 @@ export default function AccountPage() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [communityEmail, setCommunityEmail] = useState(false);
+  const [publicLineup, setPublicLineup] = useState(false);
   const [globalSummary, setGlobalSummary] = useState<GlobalSummary>();
 
-  useEffect(() => { if (profile) { setUsername(profile.username); setSelectedLocale(profile.locale); setCommunityEmail(profile.communityEmailOptIn); } }, [profile]);
+  useEffect(() => { if (profile) { setUsername(profile.username); setSelectedLocale(profile.locale); setCommunityEmail(profile.communityEmailOptIn); setPublicLineup(profile.publicLineupEnabled); } }, [profile]);
   useEffect(() => {
     if (!supabase || !profile) return;
     supabase.rpc('get_global_leaderboard',{search_username:profile.username}).then(({data}) => {
@@ -73,6 +75,10 @@ export default function AccountPage() {
   const saveEmailPreference = async () => {
     const error = await saveCommunicationPreference(communityEmail);
     setMessage(error || (communityEmail ? communityCopy[locale].emailOn : communityCopy[locale].emailOff));
+  };
+  const saveLineupVisibility = async () => {
+    const error = await savePublicLineupVisibility(publicLineup);
+    setMessage(error || (publicLineup ? lineupCopy[locale].settingOn : lineupCopy[locale].settingOff));
   };
   const changePassword = async (event:FormEvent) => {
     event.preventDefault(); if (!supabase || !userEmail) return;
@@ -114,6 +120,8 @@ export default function AccountPage() {
     </div>
 
     <section className="epic-panel communication-panel" id="communication"><div><h2>{communityCopy[locale].title}</h2><p>{communityCopy[locale].body}</p><a className="epic-button secondary" href={DISCORD_URL} target="_blank" rel="noopener noreferrer">{communityCopy[locale].discord}</a></div><div><h2>{communityCopy[locale].emailTitle}</h2><label className="checkbox-label"><input type="checkbox" checked={communityEmail} onChange={event => setCommunityEmail(event.target.checked)} /> <span>{communityCopy[locale].emailBody}</span></label><button type="button" className="epic-button" onClick={saveEmailPreference} disabled={communityEmail === profile?.communityEmailOptIn}>{communityCopy[locale].emailSave}</button>{profile?.communityEmailOptedInAt && <small>{new Date(profile.communityEmailOptedInAt).toLocaleString(locale)}</small>}</div></section>
+
+    <section className="epic-panel lineup-privacy-panel" id="lineup-visibility"><div><h2>{lineupCopy[locale].settingTitle}</h2><p>{lineupCopy[locale].settingBody}</p></div><div><label className="checkbox-label"><input type="checkbox" checked={publicLineup} onChange={event => setPublicLineup(event.target.checked)} /> <span>{lineupCopy[locale].settingLabel}</span></label><button type="button" className="epic-button" onClick={saveLineupVisibility} disabled={publicLineup === profile?.publicLineupEnabled}>{lineupCopy[locale].settingSave}</button></div></section>
 
     {(closedLeagues.length > 0 || departures.length > 0) && <section className="epic-panel league-history-panel"><div className="eyebrow">ARCHIVE</div><h2>{t('leagueHistory')}</h2><div className="activity-list">{closedLeagues.map(league => <Link href={`/leagues/${league.id}`} key={league.id}><span><strong>{league.name}</strong><small>{t(league.status)}</small></span><b>→</b></Link>)}{departures.map(item => <article key={`left-${item.id}`}><span><strong>{item.league_name}</strong><small>{t('leftLeague')} · {new Date(item.left_at).toLocaleDateString(locale)}</small></span></article>)}</div></section>}
 
