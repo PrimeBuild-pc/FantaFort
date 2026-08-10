@@ -29,9 +29,11 @@ for (const expected of ['getVerifiedAal', 'auth.getUser', "'authorize_admin_step
   if (!server.includes(expected)) throw new Error('Admin server guard is incomplete');
 }
 const config = await readFile('src/lib/admin/config.ts', 'utf8');
-for (const expected of ["value === 'true'", "env.NODE_ENV === 'production'", "env.ADMIN_MFA_ENFORCEMENT_ENABLED !== 'false'", 'mutationsEnabled && exactlyTrue(env.ADMIN_ANONYMIZATION_ENABLED)', 'serverKeyConfigured']) {
+for (const expected of ["value === 'true'", "env.NODE_ENV === 'production'", "env.ADMIN_MFA_ENFORCEMENT_ENABLED !== 'false'", 'mutationsEnabled && exactlyTrue(env.ADMIN_ANONYMIZATION_ENABLED)', 'serverKeyConfigured',
+  'badgeMutationsEnabled: exactlyTrue(env.ADMIN_BADGE_MUTATIONS_ENABLED)']) {
   if (!config.includes(expected)) throw new Error('Admin environment parser is incomplete');
 }
+if (/badgeMutationsEnabled:\s*mutationsEnabled/.test(config)) throw new Error('Badge capability must not inherit the general mutation switch');
 const service = await readFile('src/lib/admin/service.ts', 'utf8');
 for (const expected of ['adminRuntimeConfig', 'if (!config.mutationsEnabled) return null', 'recordAdminFailure', "outcome:'failed'", 'error_code:errorCode']) {
   if (!service.includes(expected)) throw new Error('Privileged admin client guard is incomplete');
@@ -83,8 +85,61 @@ if (!walletRoute.includes('> 10000') || !walletRoute.includes('payloadFingerprin
   throw new Error('Admin wallet route limits are incomplete');
 }
 const badgeRoute = await readFile('src/app/api/admin/users/[id]/badges/route.ts', 'utf8');
-for (const expected of ['prepareAdminMutation', 'badgeSlug.test', 'reason.trim().length<3', "admin_set_user_badge", "createHash('sha256')"]) {
+for (const expected of ['prepareAdminMutation(request,adminBadgeMutationsEnabled())', 'badgeSlug.test', 'reason.trim().length<3', "admin_set_user_badge", "createHash('sha256')"]) {
   if (!badgeRoute.includes(expected)) throw new Error('Admin badge route guard is incomplete');
+}
+const stepUpRoute = await readFile('src/app/api/admin/step-up/route.ts', 'utf8');
+for (const expected of ["scope === 'badge' ? adminBadgeMutationsEnabled() : adminMutationsEnabled()", 'if (!scopeEnabled(body.scope))',
+  '!adminMutationsEnabled() && !adminBadgeMutationsEnabled()', 'rejectCrossOriginMutation']) {
+  if (!stepUpRoute.includes(expected)) throw new Error('Admin step-up capability gate is incomplete');
+}
+// Technical accounts must be identifiable by metadata, not by nickname or email-domain guessing.
+for (const file of (await walk('scripts')).filter(name => name.endsWith('.mjs'))) {
+  const content = await readFile(file, 'utf8');
+  if (content.includes('auth.admin.createUser') && !content.includes('test_marker')) {
+    throw new Error('A script creates accounts without a test_marker');
+  }
+}
+const socialChecks = await readFile('scripts/check-social.mjs', 'utf8');
+if (!socialChecks.includes("if (!marked && !['127.0.0.1', 'localhost'].includes(testHost))")) {
+  throw new Error('Unmarked technical accounts are not restricted to a local database');
+}
+
+const foundingMigration = await readFile('supabase/migrations/202608110002_founding_50_awardability.sql', 'utf8');
+for (const expected of ['historical_candidate boolean', 'currently_awardable boolean', 'award_block_reason text',
+  "candidate.status = 'active'", "case when candidate.status <> 'active' then candidate.status end",
+  'not profile.is_admin', "nullif(auth_user.raw_user_meta_data ->> 'test_marker', '') is null",
+  'candidate.user_id = target_user_id and candidate.currently_awardable']) {
+  if (!foundingMigration.includes(expected)) throw new Error('Founding 50 awardability migration is incomplete');
+}
+// Eligibility must not depend on unstable nickname or email-domain heuristics.
+if (/email_confirmed_at is (not )?null\s*(and|then)[^\n]*award/i.test(foundingMigration)
+  || /(profile\.username|auth_user\.email)\s*(!?~|like|ilike)/i.test(foundingMigration)) {
+  throw new Error('Founding 50 eligibility uses a nickname, email or confirmation heuristic');
+}
+
+const granularMigration = await readFile('supabase/migrations/202608110001_granular_badge_admin.sql', 'utf8');
+for (const expected of ['badge_mutations_enabled boolean not null default false',
+  "case when new.scope = 'badge' then config.badge_mutations_enabled else config.mutations_enabled end",
+  "raise insufficient_privilege using message = 'Admin mutations disabled'",
+  "raise insufficient_privilege using message = 'Badge mutations disabled'",
+  'not profile.is_admin', 'auth_user.banned_until is null', "assignment_type = 'verified' where slug = 'founding-50'"]) {
+  if (!granularMigration.includes(expected)) throw new Error('Granular badge capability migration is incomplete');
+}
+if (/update\s+public\.admin_runtime_config\s+set\s+[a-z_]*mutations_enabled\s*=\s*true/i.test(granularMigration)) {
+  throw new Error('Granular badge migration enables admin mutations');
+}
+// The badge capability must stay scoped to badge assign/remove only.
+if (/\b(admin_adjust_wallet|admin_set_role|admin_set_account_status|admin_revoke_user_sessions|admin_anonymize_profile|admin_authorize_recovery_attempt)\b/.test(granularMigration)) {
+  throw new Error('Granular badge migration touches non-badge admin mutations');
+}
+for (const file of ['src/app/api/admin/users/[id]/wallet/route.ts', 'src/app/api/admin/users/[id]/role/route.ts',
+  'src/app/api/admin/users/[id]/suspend/route.ts', 'src/app/api/admin/users/[id]/reactivate/route.ts',
+  'src/app/api/admin/users/[id]/revoke-sessions/route.ts', 'src/app/api/admin/users/[id]/recovery/route.ts',
+  'src/app/api/admin/users/[id]/anonymize/route.ts']) {
+  if ((await readFile(file, 'utf8')).includes('adminBadgeMutationsEnabled')) {
+    throw new Error('Badge capability leaked into a non-badge admin route');
+  }
 }
 const badgeMigration = await readFile('supabase/migrations/202608100004_badge_admin_support.sql', 'utf8');
 for (const expected of ["grant_scope not in ('account_status', 'session_revoke', 'badge')", "consume_admin_step_up_grant(step_up_token_hash, 'badge', target_user_id)",

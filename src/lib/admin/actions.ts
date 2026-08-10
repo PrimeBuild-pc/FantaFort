@@ -5,8 +5,9 @@ import { adminMutationsEnabled, authorizeAdmin, rejectCrossOriginMutation } from
 
 export const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export async function prepareAdminMutation(request: NextRequest) {
-  if (!adminMutationsEnabled()) return NextResponse.json({ error:'Admin mutations disabled' }, { status:404 });
+// `capabilityEnabled` lets a route opt into its own gate (badges) instead of the general one.
+export async function prepareAdminMutation(request: NextRequest, capabilityEnabled = adminMutationsEnabled()) {
+  if (!capabilityEnabled) return NextResponse.json({ error:'Admin mutations disabled' }, { status:404 });
   const crossOrigin = rejectCrossOriginMutation(request);
   if (crossOrigin) return crossOrigin;
   return authorizeAdmin(request);

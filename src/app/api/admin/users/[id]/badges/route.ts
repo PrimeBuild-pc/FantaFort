@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { prepareAdminMutation, uuidPattern } from '@/lib/admin/actions';
+import { adminBadgeMutationsEnabled } from '@/lib/admin/server';
 
 const badgeSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export async function POST(request:NextRequest, context:{params:Promise<{id:string}>}) {
-  const admin=await prepareAdminMutation(request);
+  const admin=await prepareAdminMutation(request,adminBadgeMutationsEnabled());
   if (admin instanceof NextResponse) return admin;
   const {id}=await context.params;
   const body=await request.json().catch(()=>null) as {badge?:unknown;assign?:unknown;reason?:unknown;requestId?:unknown;idempotencyKey?:unknown;stepUpToken?:unknown}|null;

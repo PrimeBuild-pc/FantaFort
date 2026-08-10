@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminMutationsEnabled, adminServerError, authorizeAdmin } from '@/lib/admin/server';
+import { adminBadgeMutationsEnabled, adminMutationsEnabled, adminServerError, authorizeAdmin } from '@/lib/admin/server';
 
 export async function GET(request:NextRequest) {
   const admin=await authorizeAdmin(request);
@@ -9,5 +9,6 @@ export async function GET(request:NextRequest) {
     admin.client.rpc('admin_preview_founding_50'),
   ]);
   if (definitions.error || candidates.error) return adminServerError();
-  return NextResponse.json({definitions:definitions.data||[],foundingCandidates:candidates.data||[],mutationsEnabled:adminMutationsEnabled()});
+  return NextResponse.json({definitions:definitions.data||[],foundingCandidates:candidates.data||[],
+    mutationsEnabled:adminMutationsEnabled(),badgeMutationsEnabled:adminBadgeMutationsEnabled()});
 }
