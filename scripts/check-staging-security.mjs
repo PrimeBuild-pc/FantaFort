@@ -53,10 +53,14 @@ try {
   assert.ok((await first.rpc('get_admin_overview')).error);
   assert.ok((await first.rpc('authorize_admin_request')).error);
 
-  const runtime = ok(await admin.from('admin_runtime_config').select('mutations_enabled').eq('singleton', true).single());
+  const runtime = ok(await admin.from('admin_runtime_config').select('mutations_enabled,badge_mutations_enabled').eq('singleton', true).single());
   assert.equal(runtime.mutations_enabled, false);
+  assert.equal(runtime.badge_mutations_enabled, false);
   assert.ok((await first.from('admin_runtime_config').update({ mutations_enabled:true }).eq('singleton', true)).error);
-  assert.ok((await first.rpc('create_admin_step_up_grant', { grant_token_hash:createHash('sha256').update(randomUUID()).digest('hex'), grant_scope:'account_status', grant_target_user_id:secondId })).error);
+  assert.ok((await first.from('admin_runtime_config').update({ badge_mutations_enabled:true }).eq('singleton', true)).error);
+  for (const grant_scope of ['account_status', 'badge']) {
+    assert.ok((await first.rpc('create_admin_step_up_grant', { grant_token_hash:createHash('sha256').update(randomUUID()).digest('hex'), grant_scope, grant_target_user_id:secondId })).error);
+  }
 
   const session = ok(await first.auth.getSession()).session;
   const bearer = { Authorization:`Bearer ${session.access_token}`, 'Content-Type':'application/json' };

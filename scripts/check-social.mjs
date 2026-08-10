@@ -23,10 +23,16 @@ const ownerName = `owner_${runSuffix}`;
 const friendName = `friend_${runSuffix}`;
 const recoveryName = `recovery_${runSuffix}`;
 const testWindow = `check-${Date.now()}`;
-const makeUser = async name => {
+// Invariant: every technical account must carry a test_marker, because that metadata is the
+// only authoritative signal excluding it from Founding 50 and the public leaderboard. An
+// unmarked account is therefore allowed only in a disposable local database.
+const makeUser = async (name, marked = true) => {
+  if (!marked && !['127.0.0.1', 'localhost'].includes(testHost)) {
+    throw new Error('Unmarked technical accounts are only allowed against a local database');
+  }
   const email = `${name}-${Date.now()}@example.com`;
   const password = `Test-${crypto.randomUUID()}!`;
-  const created = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { username: name, test_marker:'CHECK_SOCIAL' } });
+  const created = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { username: name, ...(marked ? { test_marker:'CHECK_SOCIAL' } : {}) } });
   if (created.error) throw created.error;
   userIds.push(created.data.user.id);
   const client = createClient(url, anon, { auth: { persistSession: false } });
@@ -268,10 +274,23 @@ try {
   if (!(await owner.rpc('create_admin_step_up_grant', { grant_token_hash:disabledRuntimeToken, grant_scope:'economy' })).error) {
     throw new Error('Database admin mutation kill switch failed');
   }
+  // Both capabilities off: the badge scope is denied exactly like every other scope.
+  if (!(await owner.rpc('create_admin_step_up_grant', { grant_token_hash:tokenHash('badge-both-off'), grant_scope:'badge', grant_target_user_id:userIds[1] })).error) {
+    throw new Error('Badge step-up succeeded while every capability was disabled');
+  }
   if (!(await owner.from('admin_runtime_config').update({ mutations_enabled:true }).eq('singleton',true)).error) {
     throw new Error('Authenticated user changed the admin mutation kill switch');
   }
+  if (!(await owner.from('admin_runtime_config').update({ badge_mutations_enabled:true }).eq('singleton',true)).error) {
+    throw new Error('Authenticated user changed the badge mutation kill switch');
+  }
   ok(await admin.from('admin_runtime_config').update({ mutations_enabled:true, updated_at:new Date().toISOString() }).eq('singleton',true));
+  // General mutations on, badge capability still off: badges stay denied.
+  if (!(await owner.rpc('create_admin_step_up_grant', { grant_token_hash:tokenHash('badge-general-only'), grant_scope:'badge', grant_target_user_id:userIds[1] })).error) {
+    throw new Error('General admin mutations enabled the badge capability');
+  }
+  const wrongScopeBadgeToken = tokenHash('badge-wrong-scope');
+  ok(await owner.rpc('create_admin_step_up_grant', { grant_token_hash:wrongScopeBadgeToken, grant_scope:'account_status', grant_target_user_id:userIds[1] }));
   const recoveryRequest = crypto.randomUUID();
   if (!(await owner.rpc('admin_authorize_recovery_attempt', { target_user_id:userIds[1], action_reason:'Synthetic recovery AAL check', action_request_id:recoveryRequest, action_idempotency_key:`recovery:${recoveryRequest}`, step_up_token_hash:invalidToken })).error) throw new Error('AAL1 admin recovery guard failed');
   for (const requestedAdmin of [false, true]) {
@@ -338,6 +357,22 @@ try {
     || adminDetail.communityEmailOptIn || !Array.isArray(adminDetail.badges)) throw new Error('Admin user detail failed');
   const foundingPreview = ok(await owner.rpc('admin_preview_founding_50'));
   if (foundingPreview.some(candidate=>userIds.includes(candidate.user_id))) throw new Error('Synthetic accounts entered Founding 50 preview');
+  if (foundingPreview.some(candidate=>candidate.username===ownerName)
+    || !foundingPreview.every(candidate=>['email_confirmed','historical_candidate','currently_awardable','award_block_reason'].every(field=>field in candidate))) {
+    throw new Error('Founding 50 preview shape or administrator exclusion failed');
+  }
+
+  // Badge capability only: general admin mutations are off for the whole block below.
+  ok(await admin.from('admin_runtime_config').update({ mutations_enabled:false, badge_mutations_enabled:true, updated_at:new Date().toISOString() }).eq('singleton',true));
+  for (const denied of [{ grant_token_hash:tokenHash('badge-only-economy'), grant_scope:'economy' },
+    { grant_token_hash:tokenHash('badge-only-status'), grant_scope:'account_status', grant_target_user_id:userIds[1] },
+    { grant_token_hash:tokenHash('badge-only-revoke'), grant_scope:'session_revoke', grant_target_user_id:userIds[1] }]) {
+    if (!(await owner.rpc('create_admin_step_up_grant', denied)).error) throw new Error('Badge capability widened another admin scope');
+  }
+  const selfBadgeRequest = crypto.randomUUID();
+  if (!(await owner.rpc('admin_set_user_badge', { target_user_id:userIds[0], target_badge_slug:'contributor', assign_badge:true,
+    action_reason:'Synthetic self-badge denial', action_request_id:selfBadgeRequest,
+    action_idempotency_key:`badge:${selfBadgeRequest}`, step_up_token_hash:invalidToken })).error) throw new Error('Admin self-badge guard failed');
 
   const badgeToken = tokenHash('badge-assign');
   ok(await owner.rpc('create_admin_step_up_grant', { grant_token_hash:badgeToken, grant_scope:'badge', grant_target_user_id:userIds[1] }));
@@ -345,14 +380,94 @@ try {
   const badgeArgs = { target_user_id:userIds[1], target_badge_slug:'contributor', assign_badge:true,
     action_reason:'Verified synthetic contribution', action_request_id:badgeRequest,
     action_idempotency_key:`badge:${badgeRequest}`, step_up_token_hash:badgeToken };
+  if (!(await aal1Owner.rpc('admin_set_user_badge', { ...badgeArgs, action_request_id:crypto.randomUUID(),
+    action_idempotency_key:`badge-aal1:${crypto.randomUUID()}` })).error) throw new Error('AAL1 badge mutation succeeded');
+  if (!(await owner.rpc('admin_set_user_badge', { ...badgeArgs, action_request_id:crypto.randomUUID(),
+    action_idempotency_key:`badge-no-grant:${crypto.randomUUID()}`, step_up_token_hash:invalidToken })).error) throw new Error('Badge mutation without a grant succeeded');
+  if (!(await owner.rpc('admin_set_user_badge', { ...badgeArgs, action_request_id:crypto.randomUUID(),
+    action_idempotency_key:`badge-scope:${crypto.randomUUID()}`, step_up_token_hash:wrongScopeBadgeToken })).error) throw new Error('Badge mutation accepted a non-badge grant');
+  if (!(await owner.rpc('admin_set_user_badge', { ...badgeArgs, target_user_id:userIds[2], action_request_id:crypto.randomUUID(),
+    action_idempotency_key:`badge-target:${crypto.randomUUID()}` })).error) throw new Error('Badge grant target binding failed');
+  if (!(await owner.rpc('admin_set_user_badge', { ...badgeArgs, target_badge_slug:'top-10', action_request_id:crypto.randomUUID(),
+    action_idempotency_key:`badge-dynamic:${crypto.randomUUID()}` })).error) throw new Error('Dynamic badge was manually assignable');
+  if (!(await owner.rpc('admin_set_user_badge', { ...badgeArgs, target_badge_slug:'founding-50', action_request_id:crypto.randomUUID(),
+    action_idempotency_key:`badge-founding:${crypto.randomUUID()}` })).error) throw new Error('Founding 50 was assignable to a non-candidate');
+  const expiredBadgeToken = tokenHash('badge-expired');
+  ok(await admin.from('admin_step_up_grants').insert({ token_hash:expiredBadgeToken, admin_user_id:userIds[0], auth_session_id:ownerClaims.session_id,
+    scope:'badge', target_user_id:userIds[1], created_at:new Date(Date.now()-600000).toISOString(), expires_at:new Date(Date.now()-300000).toISOString() }));
+  if (!(await owner.rpc('admin_set_user_badge', { ...badgeArgs, action_request_id:crypto.randomUUID(),
+    action_idempotency_key:`badge-expired:${crypto.randomUUID()}`, step_up_token_hash:expiredBadgeToken })).error) throw new Error('Expired badge grant succeeded');
+
   ok(await owner.rpc('admin_set_user_badge', badgeArgs));
   const replayedBadge = ok(await owner.rpc('admin_set_user_badge', badgeArgs));
+  if (!(await owner.rpc('admin_set_user_badge', { ...badgeArgs, target_badge_slug:'beta-tester' })).error) throw new Error('Badge idempotency key was reusable for another badge');
+  if (!(await owner.rpc('admin_set_user_badge', { ...badgeArgs, action_request_id:crypto.randomUUID(),
+    action_idempotency_key:`badge-grant-replay:${crypto.randomUUID()}`, target_badge_slug:'beta-tester' })).error) throw new Error('Badge step-up grant replay succeeded');
   const badgedDetail = ok(await owner.rpc('admin_get_user', { target_user_id:userIds[1] }));
   if (!replayedBadge.replayed || !badgedDetail.badges.some(badge=>badge.slug==='contributor')) throw new Error('Admin badge assignment or idempotency failed');
   const badgeAudit = ok(await owner.rpc('admin_list_audit', { search_filter:'badge', action_filter:'badge.assign', outcome_filter:'succeeded',
     target_type_filter:'user', target_ref_filter:null, actor_username_filter:ownerName,
     created_from_filter:new Date(Date.now()-3600000).toISOString(), created_to_filter:new Date(Date.now()+60000).toISOString(), page_index:0, page_size:20 }));
   if (!badgeAudit.some(row=>row.action==='badge.assign' && row.reason==='Verified synthetic contribution')) throw new Error('Admin badge audit failed');
+
+  // A genuine Founding 50 candidate exists only in a disposable local database.
+  if (['127.0.0.1','localhost'].includes(testHost)) {
+    const foundingName = `founder_${runSuffix}`;
+    await makeUser(foundingName, false);
+    const foundingId = userIds.at(-1);
+    const candidateRow = async () => ok(await owner.rpc('admin_preview_founding_50')).find(candidate=>candidate.user_id===foundingId);
+    const initialCandidate = await candidateRow();
+    if (!initialCandidate?.historical_candidate || !initialCandidate.currently_awardable || initialCandidate.award_block_reason) {
+      throw new Error('Real account missing from Founding 50 preview');
+    }
+
+    // A suspended account keeps its historical slot but must not be awardable.
+    ok(await admin.from('profiles').update({ account_status:'suspended' }).eq('id',foundingId));
+    const suspendedCandidate = await candidateRow();
+    if (!suspendedCandidate?.historical_candidate || suspendedCandidate.currently_awardable
+      || suspendedCandidate.award_block_reason !== 'suspended') throw new Error('Suspended Founding 50 semantics failed');
+    const suspendedToken = tokenHash('badge-founding-suspended');
+    ok(await owner.rpc('create_admin_step_up_grant', { grant_token_hash:suspendedToken, grant_scope:'badge', grant_target_user_id:foundingId }));
+    const suspendedRequest = crypto.randomUUID();
+    if (!(await owner.rpc('admin_set_user_badge', { target_user_id:foundingId, target_badge_slug:'founding-50', assign_badge:true,
+      action_reason:'Synthetic suspended founding denial', action_request_id:suspendedRequest,
+      action_idempotency_key:`badge:${suspendedRequest}`, step_up_token_hash:suspendedToken })).error) throw new Error('Suspended account received Founding 50');
+    ok(await admin.from('profiles').update({ account_status:'active' }).eq('id',foundingId));
+
+    // An unconfirmed email is informational and must not block the award.
+    const unconfirmedName = `unconfirmed_${runSuffix}`;
+    const unconfirmed = ok(await admin.auth.admin.createUser({ email:`${unconfirmedName}@example.com`,
+      password:`Test-${crypto.randomUUID()}!`, email_confirm:false, user_metadata:{ username:unconfirmedName } }));
+    userIds.push(unconfirmed.user.id);
+    const unconfirmedCandidate = ok(await owner.rpc('admin_preview_founding_50')).find(candidate=>candidate.user_id===unconfirmed.user.id);
+    if (!unconfirmedCandidate || unconfirmedCandidate.email_confirmed || !unconfirmedCandidate.historical_candidate
+      || !unconfirmedCandidate.currently_awardable || unconfirmedCandidate.award_block_reason) {
+      throw new Error('Unconfirmed email blocked a Founding 50 candidate');
+    }
+
+    const foundingToken = tokenHash('badge-founding-valid');
+    ok(await owner.rpc('create_admin_step_up_grant', { grant_token_hash:foundingToken, grant_scope:'badge', grant_target_user_id:foundingId }));
+    const foundingRequest = crypto.randomUUID();
+    ok(await owner.rpc('admin_set_user_badge', { target_user_id:foundingId, target_badge_slug:'founding-50', assign_badge:true,
+      action_reason:'Synthetic verified founding candidate', action_request_id:foundingRequest,
+      action_idempotency_key:`badge:${foundingRequest}`, step_up_token_hash:foundingToken }));
+    const removeToken = tokenHash('badge-founding-remove');
+    ok(await owner.rpc('create_admin_step_up_grant', { grant_token_hash:removeToken, grant_scope:'badge', grant_target_user_id:foundingId }));
+    const removeRequest = crypto.randomUUID();
+    ok(await owner.rpc('admin_set_user_badge', { target_user_id:foundingId, target_badge_slug:'founding-50', assign_badge:false,
+      action_reason:'Synthetic founding rollback', action_request_id:removeRequest,
+      action_idempotency_key:`badge:${removeRequest}`, step_up_token_hash:removeToken }));
+    if (ok(await owner.rpc('admin_get_user', { target_user_id:foundingId })).badges.some(badge=>badge.slug==='founding-50')) throw new Error('Badge removal failed');
+  }
+
+  // Step-up rate limiting applies to the badge scope too.
+  for (let attempt = 0; attempt < 20; attempt++) await owner.rpc('create_admin_step_up_grant', { grant_token_hash:tokenHash(`badge-flood-${attempt}`), grant_scope:'badge', grant_target_user_id:userIds[1] });
+  if (!(await owner.rpc('create_admin_step_up_grant', { grant_token_hash:tokenHash('badge-flood-final'), grant_scope:'badge', grant_target_user_id:userIds[1] })).error) throw new Error('Badge step-up rate limit failed');
+  ok(await admin.from('admin_step_up_grants').delete().eq('admin_user_id',userIds[0]));
+
+  // Restore the general capability for the remaining admin checks; badges go back to fail-closed.
+  ok(await admin.from('admin_runtime_config').update({ mutations_enabled:true, badge_mutations_enabled:false, updated_at:new Date().toISOString() }).eq('singleton',true));
+  if (!(await owner.rpc('create_admin_step_up_grant', { grant_token_hash:tokenHash('badge-after-restore'), grant_scope:'badge', grant_target_user_id:userIds[1] })).error) throw new Error('Badge capability survived deactivation');
   const aal1Mutation = await aal1Owner.rpc('admin_set_account_status', {
     target_user_id:userIds[2], new_status:'suspended', action_reason:'Synthetic AAL1 denial',
     action_request_id:crypto.randomUUID(), action_idempotency_key:`aal1:${crypto.randomUUID()}`, step_up_token_hash:invalidToken,
@@ -489,7 +604,7 @@ try {
   }
   console.log('Supabase auth, social, notifications, progression, wallet, league and admin checks passed.');
 } finally {
-  await admin.from('admin_runtime_config').update({ mutations_enabled:false, updated_at:new Date().toISOString() }).eq('singleton',true);
+  await admin.from('admin_runtime_config').update({ mutations_enabled:false, badge_mutations_enabled:false, updated_at:new Date().toISOString() }).eq('singleton',true);
   await admin.from('app_errors').delete().eq('path', '/check');
   await admin.from('tournaments').delete().eq('window_id', testWindow);
   if (userIds.length) await admin.from('profiles').update({ is_admin:false, account_status:'suspended' }).in('id',userIds);
