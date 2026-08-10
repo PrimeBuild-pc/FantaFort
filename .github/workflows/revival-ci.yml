@@ -1,10 +1,9 @@
-name: Revival CI
+name: CI
 
 on:
   push:
-    branches: [revival-next]
+    branches: [main]
   pull_request:
-    branches: [revival-next]
 
 permissions:
   contents: read
