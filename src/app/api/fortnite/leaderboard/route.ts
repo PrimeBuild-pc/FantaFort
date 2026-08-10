@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchOsirion } from '@/lib/osirion-fetch';
+import { fetchOsirionJson, isLeaderboardResponse } from '@/lib/osirion-fetch';
 const SAFE_ID = /^[\w:.-]{1,200}$/;
 
 type Session = { sessionId: string; endTime: string; trackedStats: Record<string, number> };
@@ -28,13 +28,9 @@ export async function GET(request: NextRequest) {
     leaderboardEventWindowId: windowId,
     page: String(page),
   });
-  const response = await fetchOsirion(`/tournaments/leaderboard?${params}`, { next: { revalidate: 60 } }).catch(() => null);
-  if (!response?.ok) return NextResponse.json({ error: 'Leaderboard unavailable' }, { status: 502 });
-
-  const data = await response.json().catch(() => null) as {
-    leaderboard?: { totalPages: number; updatedAt: string; entries: Entry[] };
-  } | null;
-  if (!data?.leaderboard) return NextResponse.json({ error: 'Invalid provider response' }, { status: 502 });
+  const data = await fetchOsirionJson(`/tournaments/leaderboard?${params}`, isLeaderboardResponse, { next: { revalidate: 60 } })
+    .catch(() => null) as { leaderboard: { totalPages:number; updatedAt:string; entries:Entry[] } } | null;
+  if (!data) return NextResponse.json({ error: 'Leaderboard unavailable' }, { status: 502 });
 
   const entries = data.leaderboard.entries.map(entry => {
     const sessions = entry.sessionHistory || [];
