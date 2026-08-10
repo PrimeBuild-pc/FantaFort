@@ -42,4 +42,5 @@ jobs:
           export NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY"
           export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
           npm run check:db
+          npm run check:community
           npx --yes supabase@2.113.0 db lint --local --level warning

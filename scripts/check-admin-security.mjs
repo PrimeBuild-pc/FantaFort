@@ -82,6 +82,16 @@ const walletRoute = await readFile('src/app/api/admin/users/[id]/wallet/route.ts
 if (!walletRoute.includes('> 10000') || !walletRoute.includes('payloadFingerprint')) {
   throw new Error('Admin wallet route limits are incomplete');
 }
+const badgeRoute = await readFile('src/app/api/admin/users/[id]/badges/route.ts', 'utf8');
+for (const expected of ['prepareAdminMutation', 'badgeSlug.test', 'reason.trim().length<3', "admin_set_user_badge", "createHash('sha256')"]) {
+  if (!badgeRoute.includes(expected)) throw new Error('Admin badge route guard is incomplete');
+}
+const badgeMigration = await readFile('supabase/migrations/202608100004_badge_admin_support.sql', 'utf8');
+for (const expected of ["grant_scope not in ('account_status', 'session_revoke', 'badge')", "consume_admin_step_up_grant(step_up_token_hash, 'badge', target_user_id)",
+  "target_badge.slug = 'founding-50'", 'admin_preview_founding_50()', "'badge.assign'", "'badge.remove'", 'admin_audit_log']) {
+  if (!badgeMigration.includes(expected)) throw new Error('Admin badge database guard is incomplete');
+}
+if (/update\s+public\.admin_runtime_config\s+set\s+mutations_enabled\s*=\s*true/i.test(badgeMigration)) throw new Error('Badge migration enables admin mutations');
 const anonymizationRoute = await readFile('src/app/api/admin/users/[id]/anonymize/route.ts', 'utf8');
 for (const expected of ['!adminAnonymizationEnabled()', "currentAal !== 'aal2'", 'impactFingerprint', 'confirmed_target_id',
   'recordAdminFailure', 'admin_step_up_grants', 'getClaims(admin.accessToken)', 'declaredProviders', 'clearedMetadata']) {

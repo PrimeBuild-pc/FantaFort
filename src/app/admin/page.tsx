@@ -101,6 +101,7 @@ export default function AdminPage() {
       <div><small>{t('listedPlayers')}</small><b>{overview.players}</b><Link href="/players">Details →</Link></div>
       <div><small>{t('errors24h')}</small><b>{overview.errors24h}</b><a href="#recent-errors">Details →</a></div>
       <div><small>Admin actions · 24h</small><b>{overview.adminActions24h}</b><Link href="/admin/audit">Audit →</Link></div>
+      <div><small>Achievements</small><b>5</b><Link href="/admin/badges">Badge preview →</Link></div>
     </section><p className="notice">{t('lastPriceUpdate')}: {overview.latestSync ? new Date(overview.latestSync).toLocaleString(locale) : '—'}</p></>}
     {health && <section className="epic-panel"><div className="section-heading"><h2>Service health</h2></div><div className="admin-stats"><div><small>Database</small><b>{health.database}</b></div><div><small>Auth data</small><b>{health.authData}</b></div><div><small>Competitive data</small><b>{health.competitiveData}</b></div></div></section>}
     <section className="epic-panel"><div className="section-heading"><h2>Recent admin activity</h2><Link href="/admin/audit">Full audit →</Link></div><div className="error-log">{activity.length ? activity.map(entry => <article key={entry.id}><strong>{entry.action}</strong><span>{entry.actor_username} · {entry.target_type} · {entry.outcome}</span><small>{new Date(entry.created_at).toLocaleString(locale)}</small></article>) : <p>No administrative activity.</p>}</div></section>

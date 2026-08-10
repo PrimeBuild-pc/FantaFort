@@ -1,11 +1,13 @@
 import Link from 'next/link';
 import type { Locale } from '@/lib/i18n';
+import { communityCopy, DISCORD_URL } from '@/lib/community';
 import { homeCopy, marketingPath } from '@/lib/marketing';
 import MarketingFooter from './MarketingFooter';
 import MarketingHeader from './MarketingHeader';
 
 export default function MarketingHome({ locale }: { locale: Locale }) {
   const text = homeCopy[locale];
+  const community = communityCopy[locale];
   const signupHref = '/auth?mode=signup';
   const schema = {
     '@context':'https://schema.org', '@graph':[
@@ -37,6 +39,8 @@ export default function MarketingHome({ locale }: { locale: Locale }) {
         <ul>{text.benefits.map(item=><li key={item}>✓ <span>{item}</span></li>)}</ul>
         <aside><p className="eyebrow">{text.dataTitle}</p><p>{text.dataBody}</p><small>{text.fairBody}</small></aside>
       </section>
+
+      <section className="marketing-section community-callout"><div><h2>{community.title}</h2><p>{community.body}</p></div><a className="epic-button huge" href={DISCORD_URL} target="_blank" rel="noopener noreferrer">{community.discord}</a></section>
 
       <section className="marketing-cta"><h2>{text.ctaTitle}</h2><p>{text.ctaBody}</p><Link className="epic-button huge" href={signupHref}>{text.signup}</Link></section>
     </main>
