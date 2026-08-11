@@ -22,9 +22,10 @@
     "check:headers": "node --experimental-strip-types scripts/check-security-headers.mjs",
     "check:staging-security": "node --env-file=.env.staging.local scripts/check-staging-security.mjs",
     "check:seo": "node scripts/check-seo.mjs",
+    "check:pool": "node --experimental-strip-types scripts/check-player-pool.mjs",
     "sync:players": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/sync-player-pool.mjs --full",
     "import:results": "node --env-file-if-exists=.env.local scripts/import-results.mjs",
-    "sync:fortnite": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/sync-player-pool.mjs && node --experimental-strip-types --env-file-if-exists=.env.local scripts/sync-fortnite.mjs"
+    "sync:results": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/sync-fortnite.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.111.0",

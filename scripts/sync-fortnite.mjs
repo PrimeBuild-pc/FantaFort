@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { fetchOsirionJson, isLeaderboardResponse, isTournamentResponse } from '../src/lib/osirion-fetch.ts';
+import { isScoringEvent } from '../src/lib/pro-eligibility.ts';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -21,12 +22,6 @@ const sessions = new Map();
 const results = new Map();
 const largestTeams = new Map();
 
-function isFantasyEvent(eventId) {
-  const id = eventId.toLowerCase();
-  if (/mobile|console|ranked|playstation|zerobuild|trioszb|soloszb/.test(id)) return false;
-  if (id.includes('divisionalcup')) return id.includes('division1');
-  return /fncs|victorycup|cashcup/.test(id);
-}
 function eventFormat(playlist = '', eventId = '') {
   const value = `${playlist} ${eventId}`.toLowerCase();
   if (/solo/.test(value)) return 'solo';
@@ -41,7 +36,7 @@ function sizeFromFormat(value) { return { solo:1, duo:2, trio:3, squad:4 }[value
 for (const region of ['EU', 'NAC']) {
   const data = await fetchOsirionJson(`/tournaments?region=${region}&includeHistoricData=true`, isTournamentResponse);
   const windows = data.tournaments
-    .filter(event => isFantasyEvent(event.eventId))
+    .filter(event => isScoringEvent(event.eventId))
     .flatMap(event => event.eventWindows.map(window => ({ event, window })))
     .filter(({ window }) => Date.parse(window.endTime) >= cutoff && Date.parse(window.beginTime) <= future)
     .map(({ event, window }) => ({ event, window, location:window.scoreLocations.find(item => item.isMain) || window.scoreLocations[0] }))

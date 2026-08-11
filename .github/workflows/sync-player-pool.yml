@@ -1,0 +1,56 @@
+# Player pool membership, separated from the 15-minute results sync.
+#
+# The import used to run incrementally every 15 minutes and deactivate every active
+# player missing from that run's ~6 leaderboard windows, which left 1,036 active of
+# 5,264 players in production. Membership now decays on `players.last_seen_at` and
+# only a full sync may deactivate, so this job runs daily and scans broadly.
+name: Sync player pool
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Report what would be imported without writing
+        type: boolean
+        default: false
+  schedule:
+    - cron: "40 3 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-player-pool
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check configuration
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: test -n "$SUPABASE_URL" && test -n "$SUPABASE_KEY"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Import player pool
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            npm run sync:players -- --dry-run
+            exit 0
+          fi
+          for attempt in 1 2; do
+            npm run sync:players && exit 0
+            if [ "$attempt" -lt 2 ]; then sleep 30; fi
+          done
+          exit 1
