@@ -46,6 +46,10 @@ Supabase Leaked Password Protection is unavailable on the Free plan. This is an 
 
 The organization is on the Free plan: downloadable scheduled backups and PITR are unavailable. `.github/workflows/backup-database.yml` creates weekly logical role/schema/data dumps for staging and production, encrypts them before upload, and retains only encrypted artifacts for 14 days. The Supabase access token is stored as a GitHub Actions secret; the encryption recipient is a repository variable. The private decryption key is outside the repository under the operator profile and must have an offline copy.
 
+Each encrypted archive and the upload artifact are named with environment, run ID and run attempt, so a manually re-run failed job never collides with the prior attempt's artifact. Before and after every dump attempt, the workflow calls the Supabase Management API (`POST /v1/projects/{ref}/database/query`, authenticated with the same access token — no DB password or connection string involved) to terminate any `application_name = 'pg_dump'` backend still open once the CLI subprocess has returned; a legitimate dump session cannot outlive that call, so anything left is orphaned. If termination doesn't actually clear the session, the job fails immediately instead of retrying or proceeding. A failed link/dump attempt is retried at most once (`BACKUP_MAX_ATTEMPTS`) and only after that verified cleanup. `supabase` CLI output is captured to a temp log and only surfaced on failure, redacted for `postgres://` connection strings and `password=` values first, since a dynamically issued DB password from the CLI is not a registered GitHub secret and would otherwise print unmasked.
+
+`workflow_dispatch` accepts an `environment` input (`all` / `staging` / `production`, default `all`) to back up or verify a single environment without touching the other.
+
 A staging public-data dump was restored into isolated local Supabase with triggers disabled only for the restore session; 32 tables and 3,268 rows restored successfully. The temporary dump and restored data were then deleted.
 
 Restore an artifact only in an isolated environment first:

@@ -45,6 +45,12 @@ The current Strix source+staging run was attempted in the authorized non-destruc
 - The ignored stale Vercel production environment export containing obsolete privileged variables was removed from the workstation.
 - The local backup `age` identity had inherited read access for the sandbox-users group; its ACL was corrected to the operator, SYSTEM and Administrators only.
 
+## Incident: orphaned backend and local CLI password disclosure (2026-08-11)
+
+A production `pg_dump` inside `.github/workflows/backup-database.yml` failed on an SSL error and left an orphaned backend on the production database, which later blocked a migration. Separately, during local investigation the Supabase CLI printed the production database password to the terminal; that password was rotated and the local CLI session was removed. No local Supabase credentials were used for the workflow hardening below.
+
+Compensating controls: the backup workflow now terminates any residual `application_name = 'pg_dump'` backend via the Supabase Management API (token-authenticated, no DB password/connection string) before and after every dump attempt, fails the job outright if a residual session survives termination, and retries a failed link/dump at most once and only after that cleanup is verified. CLI output is captured and redacted for connection strings/passwords before ever reaching the job log. See `docs/HOSTED_SUPABASE_HARDENING.md` § Backups.
+
 ## Historical credentials
 
 The prior audit recorded 15 redacted historical matches representing three JWTs (including a service role) and one PayPal client secret. No old credential was used for authentication during closure.
