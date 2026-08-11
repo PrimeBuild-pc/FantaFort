@@ -7,6 +7,12 @@ on:
   schedule:
     - cron: '17 2 * * 0'
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to back up
+        type: choice
+        options: [all, staging, production]
+        default: all
 
 permissions:
   contents: read
@@ -22,30 +28,126 @@ jobs:
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+      BACKUP_MAX_ATTEMPTS: 2
+      BACKUP_ENVIRONMENT_FILTER: ${{ github.event.inputs.environment || 'all' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Validate backup configuration
         run: test -n "$SUPABASE_ACCESS_TOKEN" && test -n "$BACKUP_AGE_RECIPIENT"
-      - name: Install age
-        run: sudo apt-get update -qq && sudo apt-get install -y age
+      - name: Install age and jq
+        run: sudo apt-get update -qq && sudo apt-get install -y age jq
       - name: Dump and encrypt staging then production
         shell: bash
         run: |
           set -euo pipefail
+
+          # Strips connection strings/passwords before anything reaches the
+          # Actions log. Supabase CLI errors are not registered GitHub
+          # secrets, so they are not auto-masked.
+          redact() {
+            sed -E 's#(postgres(ql)?://)[^[:space:]@]*@#\1[REDACTED]@#g; s/password=[^[:space:]&]+/password=[REDACTED]/gi'
+          }
+
+          # Runs SQL via the Supabase Management API so cleanup never needs a
+          # direct DB connection string or password.
+          mgmt_query() {
+            local ref="$1" sql="$2"
+            curl -sS --fail-with-body -X POST \
+              "https://api.supabase.com/v1/projects/${ref}/database/query" \
+              -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data-binary "$(jq -n --arg q "$sql" '{query: $q}')"
+          }
+
+          # `supabase db dump --linked` has no flag or env var to set
+          # application_name (checked the CLI source: pkg/migration/dump.go's
+          # toEnv() hardcodes only PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE
+          # into the dump container, and none of `db dump`'s documented flags
+          # touch it), so a per-run/attempt session tag isn't available
+          # without switching to --db-url with a hand-built connection
+          # string — which would mean fetching/handling the raw DB password
+          # ourselves, the exact risk this workflow avoids. The closest safe
+          # substitute: as long as DB_PASSWORD/-p is never set (it isn't
+          # here), --linked always authenticates through a Management-API
+          # login role minted fresh per invocation (internal/utils/flags/
+          # db_url.go's initLoginRole), never the static `postgres` role or
+          # an application runtime role — so a `cli_login_` usename can only
+          # be a Supabase-CLI-driven session, not app traffic, a manual dump
+          # under `postgres`, or a Supavisor/PgBouncer system connection.
+          # This narrows the blast radius; it cannot fully rule out a
+          # concurrent out-of-band `supabase db dump --linked` run by a
+          # human against the same project in the same window, since that
+          # would also authenticate as a `cli_login_*` role indistinguishable
+          # from ours. A legitimate pg_dump session cannot outlive the
+          # synchronous `supabase db dump` subprocess, so any matching
+          # backend still visible once control returns here is orphaned
+          # (this is what blocked a migration after a failed SSL dump).
+          # Runs before every attempt (refuses to start over a leftover
+          # session) and after every attempt (reactive cleanup), and fails
+          # the job if termination doesn't actually clear the session.
+          cleanup_stale_sessions() {
+            local ref="$1"
+            local scope="application_name = 'pg_dump' and usename like 'cli\\_login\\_%' escape '\\'"
+            mgmt_query "$ref" \
+              "select pg_terminate_backend(pid) from pg_stat_activity where ${scope} and pid <> pg_backend_pid();" \
+              >/dev/null
+
+            local remaining
+            remaining=$(mgmt_query "$ref" \
+              "select count(*) as n from pg_stat_activity where ${scope};" \
+              | jq '[.. | numbers] | first // 0')
+
+            if [ "$remaining" != "0" ]; then
+              echo "::error::${remaining} cli_login pg_dump session(s) still present on ${ref} after cleanup" >&2
+              exit 1
+            fi
+          }
+
+          dump_environment() {
+            local environment="$1" ref="$2"
+            local target="$plain/$environment"
+            local attempt=1
+
+            cleanup_stale_sessions "$ref"
+
+            while true; do
+              mkdir -m 700 -p "$target"
+              local log; log="$(mktemp)"
+              if npx --yes supabase@2.113.0 link --project-ref "$ref" --yes >"$log" 2>&1 \
+                && npx --yes supabase@2.113.0 db dump --linked --role-only --file "$target/roles.sql" >>"$log" 2>&1 \
+                && npx --yes supabase@2.113.0 db dump --linked --file "$target/schema.sql" >>"$log" 2>&1 \
+                && npx --yes supabase@2.113.0 db dump --linked --data-only --use-copy --file "$target/data.sql" >>"$log" 2>&1; then
+                rm -f "$log"
+                cleanup_stale_sessions "$ref"
+                return 0
+              fi
+
+              echo "::warning::backup attempt ${attempt} for ${environment} failed" >&2
+              redact <"$log" >&2
+              rm -f "$log"
+              rm -rf "$target"
+              cleanup_stale_sessions "$ref"
+
+              if [ "$attempt" -ge "$BACKUP_MAX_ATTEMPTS" ]; then
+                echo "::error::giving up on ${environment} after ${attempt} attempt(s)" >&2
+                exit 1
+              fi
+              attempt=$((attempt + 1))
+            done
+          }
+
           plain="$RUNNER_TEMP/plain"
           encrypted="$RUNNER_TEMP/encrypted"
           mkdir -m 700 "$plain" "$encrypted"
           trap 'rm -rf "$plain"' EXIT
 
           while read -r environment ref; do
-            target="$plain/$environment"
-            mkdir -m 700 "$target"
-            npx --yes supabase@2.113.0 link --project-ref "$ref" --yes >/dev/null
-            npx --yes supabase@2.113.0 db dump --linked --role-only --file "$target/roles.sql" >/dev/null
-            npx --yes supabase@2.113.0 db dump --linked --file "$target/schema.sql" >/dev/null
-            npx --yes supabase@2.113.0 db dump --linked --data-only --use-copy --file "$target/data.sql" >/dev/null
-            tar -C "$plain" -czf - "$environment" | age -r "$BACKUP_AGE_RECIPIENT" -o "$encrypted/$environment-${GITHUB_RUN_ID}.tar.gz.age"
-            rm -rf "$target"
+            if [ "$BACKUP_ENVIRONMENT_FILTER" != "all" ] && [ "$BACKUP_ENVIRONMENT_FILTER" != "$environment" ]; then
+              continue
+            fi
+            dump_environment "$environment" "$ref"
+            tar -C "$plain" -czf - "$environment" | age -r "$BACKUP_AGE_RECIPIENT" -o "$encrypted/$environment-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.tar.gz.age"
+            rm -rf "${plain:?}/$environment"
           done <<'PROJECTS'
           staging ibatqfmefkekbsvuterp
           production ytbkcdwpjnqqeqjmulyl
@@ -55,7 +157,7 @@ jobs:
       - name: Upload encrypted backups
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: encrypted-database-backups-${{ github.run_id }}
+          name: encrypted-database-backups-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/encrypted/
           retention-days: 14
           if-no-files-found: error
