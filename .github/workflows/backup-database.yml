@@ -59,8 +59,27 @@ jobs:
               --data-binary "$(jq -n --arg q "$sql" '{query: $q}')"
           }
 
-          # A legitimate pg_dump session cannot outlive the synchronous
-          # `supabase db dump` subprocess, so any application_name='pg_dump'
+          # `supabase db dump --linked` has no flag or env var to set
+          # application_name (checked the CLI source: pkg/migration/dump.go's
+          # toEnv() hardcodes only PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE
+          # into the dump container, and none of `db dump`'s documented flags
+          # touch it), so a per-run/attempt session tag isn't available
+          # without switching to --db-url with a hand-built connection
+          # string — which would mean fetching/handling the raw DB password
+          # ourselves, the exact risk this workflow avoids. The closest safe
+          # substitute: as long as DB_PASSWORD/-p is never set (it isn't
+          # here), --linked always authenticates through a Management-API
+          # login role minted fresh per invocation (internal/utils/flags/
+          # db_url.go's initLoginRole), never the static `postgres` role or
+          # an application runtime role — so a `cli_login_` usename can only
+          # be a Supabase-CLI-driven session, not app traffic, a manual dump
+          # under `postgres`, or a Supavisor/PgBouncer system connection.
+          # This narrows the blast radius; it cannot fully rule out a
+          # concurrent out-of-band `supabase db dump --linked` run by a
+          # human against the same project in the same window, since that
+          # would also authenticate as a `cli_login_*` role indistinguishable
+          # from ours. A legitimate pg_dump session cannot outlive the
+          # synchronous `supabase db dump` subprocess, so any matching
           # backend still visible once control returns here is orphaned
           # (this is what blocked a migration after a failed SSL dump).
           # Runs before every attempt (refuses to start over a leftover
@@ -68,17 +87,18 @@ jobs:
           # the job if termination doesn't actually clear the session.
           cleanup_stale_sessions() {
             local ref="$1"
+            local scope="application_name = 'pg_dump' and usename like 'cli\\_login\\_%' escape '\\'"
             mgmt_query "$ref" \
-              "select pg_terminate_backend(pid) from pg_stat_activity where application_name = 'pg_dump' and pid <> pg_backend_pid();" \
+              "select pg_terminate_backend(pid) from pg_stat_activity where ${scope} and pid <> pg_backend_pid();" \
               >/dev/null
 
             local remaining
             remaining=$(mgmt_query "$ref" \
-              "select count(*) as n from pg_stat_activity where application_name = 'pg_dump';" \
+              "select count(*) as n from pg_stat_activity where ${scope};" \
               | jq '[.. | numbers] | first // 0')
 
             if [ "$remaining" != "0" ]; then
-              echo "::error::${remaining} pg_dump session(s) still present on ${ref} after cleanup" >&2
+              echo "::error::${remaining} cli_login pg_dump session(s) still present on ${ref} after cleanup" >&2
               exit 1
             fi
           }
