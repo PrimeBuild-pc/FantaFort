@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { fetchOsirionJson, isLeaderboardResponse, isTournamentResponse } from '../src/lib/osirion-fetch.ts';
-import { isCompetitiveEvent, pagesForRankLimit, POOL_REGIONS } from '../src/lib/pro-eligibility.ts';
+import { eventFormat, isCompetitiveEvent, pagesForRankLimit, POOL_REGIONS, sizeFromFormat } from '../src/lib/pro-eligibility.ts';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -22,16 +22,7 @@ const sessions = new Map();
 const results = new Map();
 const largestTeams = new Map();
 
-function eventFormat(playlist = '', eventId = '') {
-  const value = `${playlist} ${eventId}`.toLowerCase();
-  if (/solo/.test(value)) return 'solo';
-  if (/duo/.test(value)) return 'duo';
-  if (/trio/.test(value)) return 'trio';
-  if (/squad/.test(value)) return 'squad';
-  return 'unknown';
-}
 function formatFromSize(size) { return ['unknown', 'solo', 'duo', 'trio', 'squad'][size] || 'unknown'; }
-function sizeFromFormat(value) { return { solo:1, duo:2, trio:3, squad:4 }[value] || 1; }
 
 for (const region of POOL_REGIONS) {
   const data = await fetchOsirionJson(`/tournaments?region=${region}&includeHistoricData=true`, isTournamentResponse);

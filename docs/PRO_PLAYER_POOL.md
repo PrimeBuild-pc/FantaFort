@@ -102,10 +102,28 @@ The search itself excludes accounts already carried by **account id**, not by th
 `player_id`: that column is stamped at sync time, so rows recorded before an account was imported
 keep NULL forever and would otherwise offer a player the market already has.
 
+## Results come from the same crawl
+
+The pool import writes the leaderboards it downloads. A recruited player therefore arrives with the
+result that qualified them, at no extra provider request, instead of a blank card: before this, 94%
+of the `regional` and `open` tiers - the home cohort this product is for - had no statistics at all,
+because the results sync only re-crawls the last 14 days while intake looks back 180.
+
+## Leaving the pool
+
+Two ways out, both only on a full sync:
+
+- **Decay** - `POOL_GRACE_DAYS` (180) without appearing in an import.
+- **Legacy sweep** - entries written by the importer before tiers existed, identified by its own
+  `Top 100 · ` note prefix. They were chosen by rules we no longer stand behind, including regions
+  that are no longer synced and whose players can never score again, so waiting out the grace period
+  would keep them sellable for months. Curated and seeded entries never carried that prefix and are
+  untouched; guessing from `photo_url` instead is what emptied the pool the first time.
+
 ## Known limits
 
-- A player recruited from a window older than the results sync's 14-day horizon shows no statistics
-  until they next compete. The card reports that rather than fabricating history, and pricing leaves
-  the seeded value alone until real results exist.
+- A player whose qualifying window is not re-crawled keeps the result stored at import time but does
+  not accumulate new statistics until they next compete inside the results sync's 14-day horizon.
+  The card reports what exists rather than fabricating history.
 - Fortnite leaderboard eliminations are team-level; fantasy scoring assigns official team points to
   each rostered player.
