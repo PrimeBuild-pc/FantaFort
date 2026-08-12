@@ -71,6 +71,54 @@ export const TIER_PRIORITY: Record<ProTier, number> = { elite: 0, contender: 1, 
 export const POOL_TARGET_SIZE = 8_000;
 
 /**
+ * Slots reserved per tier when the qualifying population exceeds the target.
+ *
+ * Ranking purely by tier would fill the whole budget with elite and contender and
+ * leave the home cohort with nothing - measured, not hypothetical: a strict priority
+ * sort produced 1,211 elite and 6,789 contender and cut `regional` and `open`
+ * entirely, which is the opposite of what this pool is for. Quotas are filled best
+ * rank first; whatever a tier does not use spills to the others in priority order,
+ * so no slot is wasted.
+ */
+export const TIER_QUOTA: Record<ProTier, number> = {
+  elite: 1_500,
+  contender: 3_000,
+  regional: 2_500,
+  open: 1_000,
+};
+
+/**
+ * Applies the quotas, then spends any unused slots on the strongest remaining
+ * candidates. `entries` must carry a tier and the best qualifying rank.
+ */
+export function selectPool<T extends { tier: ProTier; rank: number }>(
+  entries: T[],
+  target = POOL_TARGET_SIZE,
+): T[] {
+  const byTier = new Map<ProTier, T[]>();
+  for (const entry of entries) {
+    const bucket = byTier.get(entry.tier) ?? [];
+    bucket.push(entry);
+    byTier.set(entry.tier, bucket);
+  }
+  for (const bucket of byTier.values()) bucket.sort((a, b) => a.rank - b.rank);
+
+  const chosen: T[] = [];
+  const leftover: T[] = [];
+  for (const tier of Object.keys(TIER_PRIORITY) as ProTier[]) {
+    const bucket = byTier.get(tier) ?? [];
+    chosen.push(...bucket.slice(0, TIER_QUOTA[tier]));
+    leftover.push(...bucket.slice(TIER_QUOTA[tier]));
+  }
+  if (chosen.length > target) {
+    chosen.sort((a, b) => TIER_PRIORITY[a.tier] - TIER_PRIORITY[b.tier] || a.rank - b.rank);
+    return chosen.slice(0, target);
+  }
+  leftover.sort((a, b) => TIER_PRIORITY[a.tier] - TIER_PRIORITY[b.tier] || a.rank - b.rank);
+  return chosen.concat(leftover.slice(0, Math.max(0, target - chosen.length)));
+}
+
+/**
  * Deepest rank any rule below can reach. This is capped by what the results sync can
  * realistically re-crawl every cycle, not by what the provider will serve: recruiting
  * deeper than scoring reaches is how dead cards are created.
