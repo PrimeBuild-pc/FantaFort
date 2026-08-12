@@ -2,7 +2,8 @@ import { createClient } from '@supabase/supabase-js';
 import { fetchOsirionJson, isLeaderboardResponse, isTournamentResponse } from '../src/lib/osirion-fetch.ts';
 import {
   classifyEntry, eventFormat, isCompetitiveEvent, isLegacyPoolEntry, pagesForRankLimit,
-  POOL_GRACE_DAYS, POOL_REGIONS, POOL_TARGET_SIZE, shouldDeactivate, sizeFromFormat, TIER_PRIORITY,
+  POOL_GRACE_DAYS, POOL_REGIONS, POOL_TARGET_SIZE, selectPool, shouldDeactivate, sizeFromFormat,
+  TIER_PRIORITY,
 } from '../src/lib/pro-eligibility.ts';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -40,12 +41,17 @@ const memberRows = new Map();
 const resultRows = new Map();
 
 /** Keeps the strongest claim when a player appears in several events. */
-function remember(account, classification, eventLabel) {
+function remember(account, classification, eventLabel, rank) {
   const current = imported.get(account.accountId);
-  if (current && TIER_PRIORITY[current.tier] <= TIER_PRIORITY[classification.tier]) return;
+  if (current) {
+    const better = TIER_PRIORITY[classification.tier] - TIER_PRIORITY[current.tier]
+      || rank - current.rank;
+    if (better >= 0) return;
+  }
   const stored = existingByAccount.get(account.accountId);
   imported.set(account.accountId, {
     tier: classification.tier,
+    rank,
     row: {
       id: stored?.id || account.accountId,
       account_id: account.accountId,
@@ -151,16 +157,55 @@ for (const region of POOL_REGIONS) {
           const classification = classifyEntry({
             eventId: candidate.event.eventId, region, rank: entry.rank, flagToken: account.flagToken,
           });
-          if (classification) remember(account, classification, eventLabel);
+          if (classification) remember(account, classification, eventLabel, entry.rank);
         }
       }
     }
   }
 }
 
-// Over-target crawls keep the strongest claims rather than whatever arrived first.
-const ranked = [...imported.values()].sort((a, b) => TIER_PRIORITY[a.tier] - TIER_PRIORITY[b.tier]);
-const players = ranked.slice(0, POOL_TARGET_SIZE).map(entry => entry.row);
+// The results sync records every account it sees, across a different window sample
+// than this crawl takes, so recruiting only from the 48 windows fetched here left
+// 5,577 accounts that qualify under our own rules sitting outside the market -
+// including 52 elite and several rank-1 finishes. Classifying the stored rows as well
+// costs no provider request and keeps membership decided in exactly one place: a
+// second writer would race this one and make the target meaningless.
+const pageAll = async (table, columns) => {
+  const rows = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from(table).select(columns).range(from, from + 999);
+    if (error) throw error;
+    rows.push(...data);
+    if (data.length < 1000) break;
+  }
+  return rows;
+};
+
+const storedTournaments = new Map((await pageAll('tournaments', 'window_id, event_id, region'))
+  .map(row => [row.window_id, row]));
+const storedRanks = new Map((await pageAll('tournament_teams', 'window_id, team_id, rank'))
+  .map(row => [`${row.window_id}:${row.team_id}`, row.rank]));
+let recoveredFromHistory = 0;
+for (const member of await pageAll('tournament_team_members', 'account_id, username, flag_token, window_id, team_id')) {
+  if (!member.account_id || !member.username) continue;
+  const tournament = storedTournaments.get(member.window_id);
+  const rank = storedRanks.get(`${member.window_id}:${member.team_id}`);
+  if (!tournament || !rank) continue;
+  const classification = classifyEntry({
+    eventId: tournament.event_id, region: tournament.region, rank, flagToken: member.flag_token,
+  });
+  if (!classification) continue;
+  const before = imported.size;
+  remember({ accountId: member.account_id, username: member.username, flagToken: member.flag_token },
+    classification, tournament.event_id, rank);
+  if (imported.size > before) recoveredFromHistory++;
+}
+
+// Quotas per tier, best rank first, with unused slots spilling to the others. A
+// strict priority sort filled the whole budget with elite and contender and cut the
+// home cohort entirely, which is the opposite of what this pool exists for.
+const candidates = [...imported.values()];
+const players = selectPool(candidates, POOL_TARGET_SIZE).map(entry => entry.row);
 const tierCounts = players.reduce((counts, row) => ({ ...counts, [row.pro_tier]: (counts[row.pro_tier] || 0) + 1 }), {});
 if (players.length > 10_000) throw new Error('Osirion player import exceeds record limit');
 
@@ -183,6 +228,7 @@ const keptResults = [...resultRows.values()]
 const keptWindows = new Set(keptResults.map(row => row.window_id));
 
 let deactivated = 0;
+let recoveredResults = 0;
 if (!dryRun && players.length) {
   for (let index = 0; index < players.length; index += 500) {
     const { error } = await supabase.from('players').upsert(players.slice(index, index + 500));
@@ -203,6 +249,14 @@ if (!dryRun && players.length) {
     .filter(row => keptWindows.has(row.window_id))
     .map(row => ({ ...row, player_id: pooled.get(row.account_id) || null })));
   await upsertAll('player_results', keptResults);
+
+  // Players recovered from recorded history have no results of their own yet: their
+  // team rows were stored while nobody carried them. Fill those in from what the
+  // database already holds, set-based, without overwriting anything the results sync
+  // owns for windows it re-crawls.
+  const backfilled = await supabase.rpc('sync_recorded_player_results');
+  if (backfilled.error) throw backfilled.error;
+  recoveredResults = Number(backfilled.data || 0);
 
   // Decay, not absence: an incremental run scans a handful of windows, so it must
   // never conclude that everyone it did not just see has stopped competing.
@@ -225,7 +279,9 @@ if (!dryRun && players.length) {
 
 console.log(`${dryRun ? 'Would import' : 'Player pool ready'}: ${players.length} players from ${scannedWindows} windows across ${POOL_REGIONS.length} regions.`);
 console.log(`Tiers: ${Object.entries(tierCounts).map(([tier, count]) => `${tier} ${count}`).join(' · ') || 'none'}`);
+console.log(`Recovered ${recoveredFromHistory} qualifying accounts from previously recorded results.`);
+if (!dryRun) console.log(`Backfilled ${recoveredResults} results for players who had none.`);
 console.log(`Provider requests: ${requests}/${REQUEST_BUDGET}${requests >= REQUEST_BUDGET ? ' (budget reached, crawl truncated)' : ''}`);
 console.log(`${dryRun ? 'Would store' : 'Stored'} ${keptResults.length} qualifying results across ${keptWindows.size} windows.`);
 console.log(`Mode: ${fullSync ? 'full' : 'incremental'}; deactivated ${deactivated} (decayed past ${POOL_GRACE_DAYS} days, or left over from the pre-tier importer).`);
-if (ranked.length > players.length) console.log(`Capped: ${ranked.length - players.length} lower-tier candidates dropped at the ${POOL_TARGET_SIZE} target.`);
+if (candidates.length > players.length) console.log(`Capped: ${candidates.length - players.length} candidates dropped at the ${POOL_TARGET_SIZE} target.`);
