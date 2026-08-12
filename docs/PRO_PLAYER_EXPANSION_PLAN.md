@@ -1,6 +1,7 @@
 # Pro-player expansion plan — feasibility assessment
 
-Status: **phases 1-4 implemented**; phases 5-6 proposed.
+Status: **all six phases implemented.** Ongoing rules now live in `docs/PRO_PLAYER_POOL.md`; this
+file is kept as the record of how the decisions were reached and what was measured.
 
 Target agreed with the operator: **~8,000 tracked pro players**, weighted to **NAC/NAW (US)**,
 **West-EU**, and **Italy**, including **streamers who meet a pro requirement** (e.g. Piz in Italy).
