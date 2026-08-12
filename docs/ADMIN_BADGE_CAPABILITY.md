@@ -92,8 +92,11 @@ sanity checks during a one-off manual review, they were never applied by
 `admin_preview_founding_50()`, and they must not become permanent filters: they are unstable
 heuristics and a real player may legitimately match them.
 
-**An unconfirmed email is not an exclusion criterion.** `email_confirmed` is reported for
-information only and never blocks the award.
+**An unconfirmed email blocks the award but not the slot.** The badge means *a real early
+account*, and an address nobody ever confirmed is not evidence of one. An unconfirmed account keeps
+its historical position and does not renumber anyone — exactly as a suspended account does — and
+becomes awardable the moment the address is confirmed, with no further administrative action.
+`award_block_reason` reports `email_unconfirmed`.
 
 ### Historical slot versus current awardability
 
