@@ -112,6 +112,9 @@ h3 { font-size: 1.7rem; }
 .market-pagination > span { min-width:64px; color:var(--muted); text-align:center; }
 .market-pagination button.active { color:#071426; background:var(--cyan); box-shadow:0 0 16px rgba(98,231,255,.45); }
 .player-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(255px,1fr)); gap: 1.2rem; align-items: start; }
+.player-card-skeleton { height: 340px; border-radius: 14px; border: 1px solid rgba(255,255,255,.08); background: linear-gradient(100deg, rgba(255,255,255,.04) 30%, rgba(255,255,255,.10) 50%, rgba(255,255,255,.04) 70%) 0 0 / 300% 100%; animation: skeleton-sweep 1.4s ease-in-out infinite; }
+@keyframes skeleton-sweep { to { background-position: -150% 0; } }
+@media (prefers-reduced-motion: reduce) { .player-card-skeleton { animation: none; } }
 .player-card-shell { --rarity:#20a8ff; height:520px; min-width:0; perspective:1200px; cursor:pointer; transition:transform .16s,filter .16s; animation:card-in .28s both; }
 .player-card-shell:hover { transform:translateY(-7px) scale(1.015); filter:drop-shadow(0 16px 18px rgba(0,0,0,.38)); }
 .player-card-shell:focus-visible { outline:1px solid rgba(98,231,255,.75); outline-offset:3px; box-shadow:0 0 0 3px rgba(98,231,255,.1),0 0 24px rgba(98,231,255,.45); }

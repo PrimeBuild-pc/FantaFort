@@ -1,25 +1,48 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import PlayerCard from '@/components/PlayerCard';
 import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
-
-const PAGE_SIZE = 48;
+import { MARKET_PAGE_SIZE, searchMarketPlayers } from '@/lib/market-players';
+import { supabase } from '@/lib/supabase';
+import type { Player } from '@/lib/types';
 
 export default function DashboardPage() {
-  const { players, leagues, activeLeagueId, loading } = useGame();
+  const { leagues, activeLeagueId } = useGame();
   const { t } = useLocale();
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
-  const filtered = useMemo(() => players.filter(player =>
-    `${player.handle} ${player.realName || ''} ${player.team || ''}`.toLowerCase().includes(query.trim().toLowerCase())
-  ), [players, query]);
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const [visible, setVisible] = useState<Player[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+
+  // Debounced so typing does not fire a query per keystroke.
+  useEffect(() => {
+    if (!supabase) return;
+    const client = supabase;
+    let cancelled = false;
+    setLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const result = await searchMarketPlayers(client, { search: query, page });
+        if (cancelled) return;
+        setVisible(result.players); setTotal(result.total); setFailed(false);
+      } catch {
+        if (!cancelled) { setVisible([]); setTotal(0); setFailed(true); }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }, query ? 250 : 0);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [query, page]);
+
+  const totalPages = Math.max(1, Math.ceil(total / MARKET_PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
-  const visible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const firstPageButton = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
   const pageButtons = Array.from({ length: Math.min(5, totalPages) }, (_, index) => firstPageButton + index);
   const activeLeague = leagues.find(league => league.id === activeLeagueId);
@@ -36,9 +59,11 @@ export default function DashboardPage() {
       </section>
       <div className="market-toolbar">
         <label className="search-box"><span>⌕</span><input value={query} aria-label={t('searchPlayers')} maxLength={80} onChange={event => { setQuery(event.target.value); setPage(1); }} placeholder={t('searchPlayers')} /></label>
-        <span>{filtered.length} PROS · {t('page')} {currentPage}/{totalPages}</span>
+        <span aria-live="polite">{total} PROS · {t('page')} {currentPage}/{totalPages}</span>
       </div>
-      {loading ? <p className="notice">{t('loading')}</p> : visible.length ? <><div className="player-grid">{visible.map(player => <PlayerCard key={player.id} player={player} />)}</div><nav className="market-pagination" aria-label={t('marketPages')}><button disabled={currentPage === 1} onClick={() => changePage(currentPage - 1)}>‹ <span>{t('previousPage')}</span></button>{pageButtons.map(number => <button className={number === currentPage ? 'active' : ''} aria-current={number === currentPage ? 'page' : undefined} onClick={() => changePage(number)} key={number}>{number}</button>)}<button disabled={currentPage === totalPages} onClick={() => changePage(currentPage + 1)}><span>{t('nextPage')}</span> ›</button></nav></> : <p className="notice">{t('noPlayers')}</p>}
+      {loading ? <div className="player-grid" aria-busy="true" aria-label={t('loading')}>{Array.from({ length: 12 }, (_, index) => <div className="player-card-skeleton" key={index} />)}</div>
+        : failed ? <p className="notice error" role="alert">{t('noPlayers')}</p>
+        : visible.length ? <><div className="player-grid">{visible.map(player => <PlayerCard key={player.id} player={player} />)}</div><nav className="market-pagination" aria-label={t('marketPages')}><button disabled={currentPage === 1} onClick={() => changePage(currentPage - 1)}>‹ <span>{t('previousPage')}</span></button>{pageButtons.map(number => <button className={number === currentPage ? 'active' : ''} aria-current={number === currentPage ? 'page' : undefined} onClick={() => changePage(number)} key={number}>{number}</button>)}<button disabled={currentPage === totalPages} onClick={() => changePage(currentPage + 1)}><span>{t('nextPage')}</span> ›</button></nav></> : <p className="notice">{t('noPlayers')}</p>}
     </main>
   </div>;
 }

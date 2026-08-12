@@ -1,0 +1,83 @@
+# Applies committed migrations to the staging project.
+#
+# The Supabase GitHub integration can only track one project per repository, and it
+# is bound to production. Staging therefore drifted: it is currently missing
+# 202608130001 and 202608130002. Without this, staging cannot be used to verify a
+# schema change before production sees it, which is the whole point of having it.
+#
+# Uses SUPABASE_ACCESS_TOKEN only. `link`/`db push` mint a short-lived login role
+# through the Management API when no DB_PASSWORD is set, so no database password is
+# needed here - the same mechanism the encrypted backup workflow already relies on.
+name: Migrate staging database
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "list = compare local and remote history (read-only); push = apply"
+        type: choice
+        options: [list, push]
+        default: list
+  push:
+    branches: [main]
+    paths: ['supabase/migrations/**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: migrate-staging
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      STAGING_PROJECT_REF: ibatqfmefkekbsvuterp
+      # A push to main applies; a manual run only lists unless asked to push.
+      MODE: ${{ github.event_name == 'push' && 'push' || inputs.mode }}
+    steps:
+      - name: Validate configuration
+        run: test -n "$SUPABASE_ACCESS_TOKEN"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: Compare and apply migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # The CLI can print a connection string or a freshly minted role password.
+          # Those are not registered GitHub secrets, so nothing masks them for us.
+          redact() {
+            sed -E 's#(postgres(ql)?://)[^[:space:]@]*@#\1[REDACTED]@#g; s/password=[^[:space:]&]+/password=[REDACTED]/gi'
+          }
+          run_cli() {
+            local log; log="$(mktemp)"
+            if npx --yes supabase@2.113.0 "$@" >"$log" 2>&1; then
+              redact <"$log"; rm -f "$log"; return 0
+            fi
+            echo "::error::supabase $1 failed against staging" >&2
+            redact <"$log" >&2; rm -f "$log"; return 1
+          }
+
+          run_cli link --project-ref "$STAGING_PROJECT_REF" --yes
+
+          # Always show the comparison first: staging's migration history predates this
+          # workflow, so a mismatch must be visible rather than inferred from a failure.
+          echo "::group::Migration history (local vs staging)"
+          run_cli migration list --linked
+          echo "::endgroup::"
+
+          if [ "$MODE" != "push" ]; then
+            echo "Read-only run: no migration was applied."
+            exit 0
+          fi
+
+          run_cli db push --linked
+          echo "::group::Migration history after push"
+          run_cli migration list --linked
+          echo "::endgroup::"
