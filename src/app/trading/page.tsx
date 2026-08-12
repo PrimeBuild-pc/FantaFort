@@ -7,6 +7,7 @@ import Header from '@/components/Header';
 import TradingChart, { ChartRange, TradingPoint } from '@/components/TradingChart';
 import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
+import { fetchMarketSummary, fetchPlayersByIds, MarketSummary, searchMarketPlayers } from '@/lib/market-players';
 import { Player } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 
@@ -15,7 +16,7 @@ type TradeRow = { id:number|string; amount:number; type:string; metadata:Record<
 type Sort = 'change'|'price'|'name';
 
 export default function TradingPage() {
-  const { accountPortfolio, accountBuyPlayer, accountSellPlayer, players, userId, loading } = useGame();
+  const { accountPortfolio, accountBuyPlayer, accountSellPlayer, userId, loading } = useGame();
   const { locale, t } = useLocale();
   const [query,setQuery]=useState('');
   const [selectedId,setSelectedId]=useState('');
@@ -31,20 +32,52 @@ export default function TradingPage() {
   const [side,setSide]=useState<'buy'|'sell'>('buy');
   const [message,setMessage]=useState('');
   const [pending,setPending]=useState(false);
+  const [pool,setPool]=useState<Player[]>([]);
+  const [poolLoading,setPoolLoading]=useState(true);
+  const [summary,setSummary]=useState<MarketSummary>({listed:0,advancing:0,declining:0,averageMove:0,movers:[]});
   const positions=useMemo(()=>new Map(accountPortfolio.positions.map(position=>[position.playerId,position])),[accountPortfolio.positions]);
-  const market=useMemo(()=>players.filter(player=>{
+  const market=useMemo(()=>pool.filter(player=>{
     const matches=`${player.handle} ${player.realName||''} ${player.team||''}`.toLowerCase().includes(query.toLowerCase());
     return matches&&(filter==='all'||filter==='watchlist'&&watchlist.has(player.id)||filter==='portfolio'&&positions.has(player.id));
-  }).sort((a,b)=>sort==='name'?a.handle.localeCompare(b.handle):sort==='price'?b.price-a.price:(b.priceChange||0)-(a.priceChange||0)).slice(0,160),[filter,players,positions,query,sort,watchlist]);
-  const selected=players.find(player=>player.id===selectedId)||players.find(player=>positions.has(player.id))||market[0]||players[0];
+  }).sort((a,b)=>sort==='name'?a.handle.localeCompare(b.handle):sort==='price'?b.price-a.price:(b.priceChange||0)-(a.priceChange||0)).slice(0,160),[filter,pool,positions,query,sort,watchlist]);
+  const selected=pool.find(player=>player.id===selectedId)||pool.find(player=>positions.has(player.id))||market[0]||pool[0];
   const position=selected?positions.get(selected.id):undefined;
   const number=(value:number)=>new Intl.NumberFormat(locale,{maximumFractionDigits:1}).format(value);
   const percent=(value:number,base:number)=>base?value/base*100:0;
-  const gainers=useMemo(()=>[...players].sort((a,b)=>(b.priceChange||0)-(a.priceChange||0)).slice(0,3),[players]);
-  const losers=useMemo(()=>[...players].filter(player=>(player.priceChange||0)<0).sort((a,b)=>(a.priceChange||0)-(b.priceChange||0)).slice(0,3),[players]);
-  const advancing=players.filter(player=>(player.priceChange||0)>0).length;
-  const declining=players.filter(player=>(player.priceChange||0)<0).length;
-  const averageMove=players.length?players.reduce((sum,player)=>sum+(player.priceChange||0),0)/players.length:0;
+  const gainers=useMemo(()=>summary.movers.filter(mover=>mover.priceChange>0).slice(0,3),[summary.movers]);
+  const losers=useMemo(()=>summary.movers.filter(mover=>mover.priceChange<0).slice(0,3),[summary.movers]);
+  const advancing=summary.advancing;
+  const declining=summary.declining;
+  const averageMove=summary.averageMove;
+
+  // The browser holds a working slice, not the pool: the current search page plus the
+  // players the user actually owns or watches, so every panel still resolves locally.
+  useEffect(()=>{
+    if(!supabase)return;
+    const client=supabase;
+    let cancelled=false;
+    setPoolLoading(true);
+    const timer=setTimeout(async()=>{
+      try{
+        const pinned=[...new Set([...accountPortfolio.positions.map(position=>position.playerId),...watchlist])];
+        const [page,owned,marketSummary]=await Promise.all([
+          searchMarketPlayers(client,{search:query,page:1,pageSize:100}),
+          pinned.length?fetchPlayersByIds(client,pinned):Promise.resolve([]),
+          fetchMarketSummary(client),
+        ]);
+        if(cancelled)return;
+        const merged=new Map(page.players.map(player=>[player.id,player]));
+        owned.forEach(player=>merged.set(player.id,player));
+        setPool([...merged.values()]);
+        setSummary(marketSummary);
+      }catch{
+        if(!cancelled)setPool([]);
+      }finally{
+        if(!cancelled)setPoolLoading(false);
+      }
+    },query?250:0);
+    return()=>{cancelled=true;clearTimeout(timer);};
+  },[accountPortfolio.positions,query,watchlist]);
 
   useEffect(()=>{
     if(!supabase||!userId)return;
@@ -113,19 +146,19 @@ export default function TradingPage() {
   const tradeValue=side==='sell'?Math.floor((selected?.price||0)*.95):selected?.price||0;
   const balanceAfter=side==='sell'?accountPortfolio.balance+tradeValue:accountPortfolio.balance-tradeValue;
 
-  if(loading)return <div className="app-shell"><Header/><main className="container page-content"><p className="notice">{t('loading')}</p></main></div>;
+  if(loading||poolLoading&&!pool.length)return <div className="app-shell"><Header/><main className="container page-content"><p className="notice" aria-busy="true">{t('loading')}</p></main></div>;
   if(!userId)return <div className="app-shell"><Header/><main className="container page-content"><div className="empty-state"><h2>{t('signIn')}</h2><Link href="/auth" className="epic-button">{t('login')}</Link></div></main></div>;
   return <div className="app-shell"><Header/><main className="container page-content trading-dashboard">
     <section className="trading-hero"><div><div className="eyebrow">VIRTUAL PLAYER EXCHANGE</div><h1>{t('trading')}</h1><p>{t('virtualCoinsNotice')}</p></div><div className={`market-clock ${marketStale?'stale':''}`}><small>{t('marketStatus')}</small><b>{marketStale?t('dataStale'):t('marketOnline')}</b><span>{lastSync?`${t('updated')} ${new Date(lastSync).toLocaleString(locale)}`:'—'}</span></div></section>
     {message&&<p className="notice" role="status">{message}</p>}
     <section className="portfolio-strip finance-summary"><div><small>{t('available')}</small><b>{number(accountPortfolio.balance)} C</b></div><div><small>{t('invested')}</small><b>{number(accountPortfolio.holdingsValue)} C</b></div><div><small>{t('locked')}</small><b>{number(accountPortfolio.lockedBalance)} C</b></div><div><small>{t('totalEquity')}</small><b>{number(accountPortfolio.totalEquity)} C</b></div><div className={accountPortfolio.dailyPnl>=0?'positive':'negative'}><small>24H P&amp;L</small><b>{accountPortfolio.dailyPnl>=0?'+':''}{number(accountPortfolio.dailyPnl)} C</b></div><div className={accountPortfolio.totalPnl>=0?'positive':'negative'}><small>TOTAL P&amp;L</small><b>{accountPortfolio.totalPnl>=0?'+':''}{number(accountPortfolio.totalPnl)} C</b></div><Link href="/wallet" className="epic-button secondary">{t('wallet')}</Link></section>
 
-    <section className="market-overview"><div><small>{t('listedPlayers')}</small><b>{players.length}</b></div><div className="positive"><small>{t('advancing')}</small><b>{advancing}</b></div><div className="negative"><small>{t('declining')}</small><b>{declining}</b></div><div className={averageMove>=0?'positive':'negative'}><small>{t('averageMove')}</small><b>{averageMove>=0?'+':''}{number(averageMove)} C</b></div><div className="mover-tape"><small>TOP MOVERS</small><span>{gainers.map(player=><button key={player.id} onClick={()=>setSelectedId(player.id)}>{player.handle} <em className="positive">+{number(player.priceChange||0)}</em></button>)}{losers.map(player=><button key={player.id} onClick={()=>setSelectedId(player.id)}>{player.handle} <em className="negative">{number(player.priceChange||0)}</em></button>)}</span></div></section>
+    <section className="market-overview"><div><small>{t('listedPlayers')}</small><b>{summary.listed}</b></div><div className="positive"><small>{t('advancing')}</small><b>{advancing}</b></div><div className="negative"><small>{t('declining')}</small><b>{declining}</b></div><div className={averageMove>=0?'positive':'negative'}><small>{t('averageMove')}</small><b>{averageMove>=0?'+':''}{number(averageMove)} C</b></div><div className="mover-tape"><small>TOP MOVERS</small><span>{gainers.map(player=><button key={player.id} onClick={()=>setSelectedId(player.id)}>{player.handle} <em className="positive">+{number(player.priceChange||0)}</em></button>)}{losers.map(player=><button key={player.id} onClick={()=>setSelectedId(player.id)}>{player.handle} <em className="negative">{number(player.priceChange||0)}</em></button>)}</span></div></section>
 
     {selected&&<div className="analysis-layout"><section className="chart-panel epic-panel"><header className="asset-header"><div className="asset-identity">{selected.photoUrl?<img src={selected.photoUrl} alt=""/>:<i>{selected.handle.slice(0,2)}</i>}<div><div className="eyebrow">{selected.team||'FORTNITE PRO'}</div><h2>{selected.handle}</h2><span>{position?`${t('owned')} · ${position.pnl>=0?'+':''}${number(position.pnl)} C P&L`:t('notOwned')}</span></div></div><button className="watch-button" onClick={toggleWatch} aria-label={t('watchlist')}>{watchlist.has(selected.id)?'★':'☆'}</button></header><TradingChart points={history} range={range} onRangeChange={setRange} locale={locale} loading={historyLoading}/><div className="asset-fundamentals"><span><small>{t('marketPrice')}</small><b>{number(selected.price)} C</b></span><span><small>{t('pointsPerGame')}</small><b>{selected.pointsPerMatch||0}</b></span><span><small>{t('winRate')}</small><b>{selected.winRate||0}%</b></span><span><small>{t('avgPlacement')}</small><b>{selected.averagePlacement?`#${selected.averagePlacement}`:'—'}</b></span><span><small>{t('recentTeammates')}</small><b>{selected.teammates?.slice(0,2).map(player=>player.handle).join(' · ')||'—'}</b></span></div></section>
       <aside className="order-ticket epic-panel" id="order-ticket"><div className="eyebrow">ORDER TICKET</div><h2>{selected.handle}</h2><div className="order-tabs"><button className={side==='buy'?'active':''} onClick={()=>setSide('buy')}>{t('purchase')}</button><button className={side==='sell'?'active':''} onClick={()=>setSide('sell')}>{t('sell')}</button></div><div className="order-quote"><span><small>{t('marketPrice')}</small><b>{number(selected.price)} C</b></span>{side==='sell'&&<span><small>{t('spread')}</small><b>-5%</b></span>}<span><small>{side==='sell'?t('saleValue'):t('orderCost')}</small><b>{number(tradeValue)} C</b></span></div><div className="order-balance"><p><span>{t('available')}</span><b>{number(accountPortfolio.balance)} C</b></p><p><span>{t('afterOrder')}</span><b className={balanceAfter<0?'negative':''}>{number(balanceAfter)} C</b></p>{position&&<p><span>{t('boughtAt')}</span><b>{number(position.acquiredPrice)} C</b></p>}</div>{side==='sell'&&!position&&<p className="notice">{t('noPosition')}</p>}{side==='buy'&&position&&<p className="notice">{t('oneCardLimit')}</p>}<button className={`epic-button order-submit ${side}`} disabled={pending||marketStale||side==='buy'&&(!!position||accountPortfolio.balance<tradeValue)||side==='sell'&&!position} onClick={executeTrade}>{pending?t('wait'):`${side==='buy'?t('purchase'):t('sell')} ${selected.handle} · ${number(tradeValue)} C`}</button><small className="order-disclaimer">{t('serverPriceNotice')}</small></aside></div>}
 
-    <div className="trading-lower"><section className="epic-panel positions-panel"><div className="section-heading"><div><div className="eyebrow">HOLDINGS</div><h2>{t('portfolio')}</h2></div><span>{accountPortfolio.positions.length} {t('positions')}</span></div>{accountPortfolio.positions.length?<div className="positions-table"><div className="positions-head"><span>{t('player')}</span><span>{t('value')}</span><span>{t('averageCost')}</span><span>24H</span><span>P&amp;L</span><span/></div>{accountPortfolio.positions.map(held=>{const player=players.find(item=>item.id===held.playerId);return <div key={held.playerId}><button className="position-asset" onClick={()=>player&&setSelectedId(player.id)}><strong>{held.handle}</strong><small>{player?.team||'PRO'}</small></button><b>{number(held.currentPrice)} C</b><span>{number(held.acquiredPrice)} C</span><span className={(held.dailyChange||0)>=0?'positive':'negative'}>{(held.dailyChange||0)>=0?'+':''}{number(held.dailyChange||0)}</span><span className={held.pnl>=0?'positive':'negative'}>{held.pnl>=0?'+':''}{number(held.pnl)} C<br/><small>{percent(held.pnl,held.acquiredPrice).toFixed(1)}%</small></span><button className="sell-now" onClick={()=>player&&selectForTrade(player,'sell')}>{t('sell')}</button></div>})}</div>:<p className="notice">{t('emptyPortfolio')}</p>}</section>
+    <div className="trading-lower"><section className="epic-panel positions-panel"><div className="section-heading"><div><div className="eyebrow">HOLDINGS</div><h2>{t('portfolio')}</h2></div><span>{accountPortfolio.positions.length} {t('positions')}</span></div>{accountPortfolio.positions.length?<div className="positions-table"><div className="positions-head"><span>{t('player')}</span><span>{t('value')}</span><span>{t('averageCost')}</span><span>24H</span><span>P&amp;L</span><span/></div>{accountPortfolio.positions.map(held=>{const player=pool.find(item=>item.id===held.playerId);return <div key={held.playerId}><button className="position-asset" onClick={()=>player&&setSelectedId(player.id)}><strong>{held.handle}</strong><small>{player?.team||'PRO'}</small></button><b>{number(held.currentPrice)} C</b><span>{number(held.acquiredPrice)} C</span><span className={(held.dailyChange||0)>=0?'positive':'negative'}>{(held.dailyChange||0)>=0?'+':''}{number(held.dailyChange||0)}</span><span className={held.pnl>=0?'positive':'negative'}>{held.pnl>=0?'+':''}{number(held.pnl)} C<br/><small>{percent(held.pnl,held.acquiredPrice).toFixed(1)}%</small></span><button className="sell-now" onClick={()=>player&&selectForTrade(player,'sell')}>{t('sell')}</button></div>})}</div>:<p className="notice">{t('emptyPortfolio')}</p>}</section>
       <aside className="epic-panel allocation-panel"><div className="eyebrow">ALLOCATION</div><h2>{t('allocation')}</h2>{accountPortfolio.positions.slice(0,8).map(held=><div key={held.playerId}><span><b>{held.handle}</b><small>{percent(held.currentPrice,accountPortfolio.holdingsValue).toFixed(1)}%</small></span><i><em style={{width:`${percent(held.currentPrice,accountPortfolio.holdingsValue)}%`}}/></i></div>)}{!accountPortfolio.positions.length&&<p>—</p>}<hr/><div className="pnl-breakdown"><p><span>{t('realizedPnl')}</span><b className={accountPortfolio.realizedPnl>=0?'positive':'negative'}>{accountPortfolio.realizedPnl>=0?'+':''}{number(accountPortfolio.realizedPnl)} C</b></p><p><span>{t('unrealizedPnl')}</span><b className={accountPortfolio.unrealizedPnl>=0?'positive':'negative'}>{accountPortfolio.unrealizedPnl>=0?'+':''}{number(accountPortfolio.unrealizedPnl)} C</b></p></div></aside></div>
 
     <div className="trading-lower market-section"><section className="exchange-list epic-panel"><div className="market-toolbar advanced"><label className="search-box"><span>⌕</span><input value={query} onChange={event=>setQuery(event.target.value)} placeholder={t('searchPlayers')}/></label><div className="filter-tabs"><button className={filter==='all'?'active':''} onClick={()=>setFilter('all')}>{t('all')}</button><button className={filter==='watchlist'?'active':''} onClick={()=>setFilter('watchlist')}>★ {t('watchlist')}</button><button className={filter==='portfolio'?'active':''} onClick={()=>setFilter('portfolio')}>{t('portfolio')}</button></div><label>{t('sort')}<select value={sort} onChange={event=>setSort(event.target.value as Sort)}><option value="change">{t('movement')}</option><option value="price">{t('price')}</option><option value="name">A–Z</option></select></label></div><div className="trade-table"><div className="trade-head"><span>{t('player')}</span><span>{t('price')}</span><span>MOVE</span><span>{t('position')}</span></div>{market.map(player=>{const held=positions.get(player.id);return <button className={selected?.id===player.id?'selected':''} key={player.id} onClick={()=>setSelectedId(player.id)}><span><i className={`rarity-dot ${player.rarity}`}/><strong>{player.handle}</strong><small>{player.team||'PRO'}</small></span><b>{number(player.price)} C</b><em className={(player.priceChange||0)>=0?'positive':'negative'}>{(player.priceChange||0)>=0?'+':''}{number(player.priceChange||0)}</em><span>{held?`${held.pnl>=0?'+':''}${number(held.pnl)} C`:'—'}</span></button>})}</div></section>

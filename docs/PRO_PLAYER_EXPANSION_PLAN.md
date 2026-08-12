@@ -217,8 +217,21 @@ except for tier labels; any membership change here is a bug.
 
 ## Phase 3 — Server-side market (the feasibility unlock)
 
-**Do this first:** write down every consumer of `GameContext.players` (roster, lineup, projections,
-team page, standings). The shape change is what breaks things, not the query.
+It also fixes the admin console's load times: `Header` calls `useGame()` and sits on every admin
+page, so today every admin screen waits for the entire market to download before it renders.
+
+### Consumer map of `GameContext.players` (written before editing, per the rule below)
+
+| Consumer | Uses | Needs after the change |
+|---|---|---|
+| `src/context/GameContext.tsx:137` | `setTeam(market.filter(id in rosterIds))` — **the roster is derived from the full market** | `get_players_by_ids(rosterIds)` |
+| `src/app/dashboard/page.tsx:13` | market grid, client-side `query` filter, pagination | `search_market_players()` |
+| `src/app/trading/page.tsx:18` | search + buy/sell | `search_market_players()` |
+| `src/app/leagues/[id]/page.tsx:24` | resolves player names for standings/rosters | `get_players_by_ids()` |
+| `src/components/PlayerCard.tsx`, `src/app/dashboard/team/page.tsx` | `team` only, never `players` | unaffected once `team` is populated |
+
+`GameContext.tsx:137` is the load-bearing line: nothing else forces the whole market to exist
+client-side.
 
 1. `search_market_players(query, tier, cursor, limit)` returning a **light** row — id, handle,
    organization, photo_url, rarity, price, price_change. No `teammates`, no career laterals. Bounded
@@ -303,6 +316,36 @@ the Fortnite-API.com finding so nobody re-investigates.
 | 5 | Include ZeroBuild events? (currently excluded from results, not from the import) | No for now — keeps scoring comparable; revisit if the audience asks |
 | 6 | Promotion: admin-only or any authenticated user? | Admin-only first, open up after the rate limit and audit have run in staging |
 | 7 | Should pricing change with tiers? | Not in this work — membership first, pricing separately |
+
+## 7b. Deferred decisions (agreed 2026-08-12)
+
+**Unconfirmed email must block the Founding 50 award.** Agreed: the account keeps its historical
+slot but is not awardable until it confirms, exactly as suspension already behaves. Implementation
+is one extra condition plus an `award_block_reason` value in `admin_preview_founding_50()` and the
+matching guard in `admin_set_user_badge`. Affects 3 of 31 candidates today.
+
+**Not adopted as specified — the expiry/re-dating machinery.** The operator also asked that an
+account which fails to confirm within a week lose its historical slot, be set to `suspended`, and be
+re-dated to its confirmation time, with an activity-based exemption. Three problems, recorded rather
+than built:
+
+1. `account_status = 'suspended'` is not a neutral lifecycle state. It is the **precondition for
+   anonymization** (`202607190008_admin_anonymization.sql:54` refuses to anonymize anything else),
+   it is what a self-service **deletion request** sets (`202607250001_privacy_requests.sql:47`), and
+   it drives the `suspendedUsers` metric. Auto-suspending unconfirmed signups would make them
+   anonymisation-eligible and indistinguishable from users who asked to be deleted.
+2. Re-dating breaks the property the ordering depends on. The slot order comes from
+   `auth.users.created_at` precisely because Auth owns it and it is immutable; the docs state a
+   historical slot "does not change when the account's status changes". A mutable order needs a
+   separate `profiles.founding_order_at` column and an explicit decision to make history editable.
+3. The activity-based exemption ("if they trade, just remind them") reintroduces unstable heuristics
+   into eligibility, which `ADMIN_BADGE_CAPABILITY.md` deliberately excludes in favour of stable
+   database facts.
+
+**And it currently solves nothing:** there are 31 candidates for 50 slots, so no unconfirmed account
+is blocking anyone. Revisit only if real signups exceed 50. A confirmation-reminder email is a
+separate feature — no notification system exists yet, and sending mail to real users needs explicit
+per-send approval.
 
 ## 8. Out of scope
 

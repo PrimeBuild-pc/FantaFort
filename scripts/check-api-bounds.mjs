@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { fetchOsirionJson, isLeaderboardResponse, isTournamentResponse } from '../src/lib/osirion-fetch.ts';
-import { getAllMarketPlayers } from '../src/lib/market-players.ts';
+import { fetchPlayersByIds, searchMarketPlayers } from '../src/lib/market-players.ts';
 
 const originalFetch = globalThis.fetch;
 const mock = implementation => { globalThis.fetch = implementation; };
@@ -40,8 +40,30 @@ try {
   globalThis.fetch = originalFetch;
 }
 
-let marketPage = 0;
-const marketClient = { rpc: () => ({ range:async () => ({ data:marketPage++ === 0 ? Array(1000).fill({ id:'player' }) : [{ id:'last' }], error:null }) }) };
-assert.equal((await getAllMarketPlayers(marketClient)).length, 1001);
-assert.equal(marketPage, 2);
-console.log('API timeout, byte, JSON, schema, record and valid-response checks passed.');
+// The market is served page by page; the client must never ask for an unbounded set.
+const calls = [];
+const marketClient = { rpc: async (name, params) => {
+  calls.push({ name, params });
+  if (name === 'search_market_players') return { data:[{ id:'a', handle:'A', total_count:1234 }], error:null };
+  return { data:params.ids.map(id => ({ id, handle:id })), error:null };
+} };
+
+// Id resolution chunks to the server-side cap instead of sending one huge array.
+const many = Array.from({ length: 501 }, (_, index) => `player-${index}`);
+assert.equal((await fetchPlayersByIds(marketClient, many)).length, 501);
+assert.deepEqual(calls.map(call => call.params.ids.length), [500, 1]);
+assert.deepEqual(await fetchPlayersByIds(marketClient, []), [], 'no request for an empty id set');
+
+calls.length = 0;
+const page = await searchMarketPlayers(marketClient, { search:`  ${'a'.repeat(120)}  `, page:3, pageSize:48 });
+assert.equal(page.total, 1234, 'pager total comes from the unpaginated count');
+assert.equal(calls[0].params.search.length, 80, 'search term is truncated before it leaves the client');
+assert.equal(calls[0].params.page_offset, 96);
+assert.equal(calls[0].params.page_limit, 48);
+
+calls.length = 0;
+await searchMarketPlayers(marketClient, { search:'   ' });
+assert.equal(calls[0].params.search, null, 'a blank search is sent as no filter, not an empty match');
+assert.equal(calls[0].params.page_offset, 0);
+
+console.log('API timeout, byte, JSON, schema, record, valid-response and market pagination checks passed.');
