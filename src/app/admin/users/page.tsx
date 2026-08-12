@@ -4,7 +4,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
-import { adminFetch } from '@/lib/admin/client';
+import { adminFetch, adminStepUp } from '@/lib/admin/client';
 
 type UserRow = {
   id:string;
@@ -40,6 +40,12 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [sort, setSort] = useState<SortKey>('created_at');
   const [direction, setDirection] = useState<'asc'|'desc'>('desc');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [badge, setBadge] = useState('founding-50');
+  const [reason, setReason] = useState('');
+  const [mfaCode, setMfaCode] = useState('');
+  const [bulkPending, setBulkPending] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -54,6 +60,34 @@ export default function AdminUsersPage() {
   }, [direction, page, role, search, sort, status]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Only active non-admin accounts can receive a badge, so nothing else is selectable.
+  const selectable = users.filter(user => user.account_role !== 'admin' && user.account_status === 'active');
+  const toggle = (id:string) => setSelected(current => {
+    const next = new Set(current);
+    if (!next.delete(id)) next.add(id);
+    return next;
+  });
+
+  // One step-up bound to this exact set of accounts, then one call that still writes
+  // an audit row per award. The server re-validates every target and applies the batch
+  // all-or-nothing, so a partially eligible selection changes nothing.
+  const applyBulk = async (assign:boolean) => {
+    const ids = [...selected];
+    if (!ids.length || reason.trim().length < 3 || mfaCode.length !== 6) return;
+    setBulkPending(true); setBulkMessage('');
+    const token = await adminStepUp('badge', mfaCode, undefined, ids);
+    if (!token) { setBulkMessage('Step-up failed: check the code and that badge mutations are enabled.'); setBulkPending(false); setMfaCode(''); return; }
+    const response = await adminFetch('/api/admin/badges/bulk', {
+      method:'POST',
+      body:JSON.stringify({ userIds:ids, badge, assign, reason:reason.trim(),
+        requestId:crypto.randomUUID(), idempotencyKey:crypto.randomUUID(), stepUpToken:token }),
+    });
+    const payload = await response?.json().catch(() => null) as { result?:{ processed:number; changed:number } }|null;
+    if (!response?.ok) setBulkMessage('Rejected — nothing was changed. Check that every selected account is active and currently awardable.');
+    else { setBulkMessage(`${assign?'Assigned':'Removed'} ${badge}: ${payload?.result?.changed ?? 0} changed of ${payload?.result?.processed ?? ids.length}.`); setSelected(new Set()); setReason(''); load(); }
+    setMfaCode(''); setBulkPending(false);
+  };
   const submit = (event:FormEvent) => { event.preventDefault(); setPage(0); load(); };
 
   // Sorting is server-side: the list is paginated, so reordering the fetched page
@@ -74,9 +108,26 @@ export default function AdminUsersPage() {
       <label>Role<select value={role} onChange={event => { setRole(event.target.value); setPage(0); }}><option value="">All</option><option value="user">User</option><option value="admin">Admin</option></select></label>
       <button className="epic-button">Search</button>
     </form>
+    {selected.size > 0 && <section className="epic-panel bulk-bar" aria-label="Bulk badge assignment">
+      <div className="bulk-summary"><strong>{selected.size} selected</strong><button type="button" className="link-button" onClick={() => setSelected(new Set())}>Clear</button></div>
+      <label>Badge<select value={badge} onChange={event => setBadge(event.target.value)} disabled={bulkPending}>
+        <option value="founding-50">Founding 50</option><option value="beta-tester">Beta Tester</option><option value="contributor">Contributor</option>
+      </select></label>
+      <label>Reason<input value={reason} onChange={event => setReason(event.target.value)} maxLength={500} placeholder="Recorded in the audit log" disabled={bulkPending} /></label>
+      <label>MFA code<input value={mfaCode} onChange={event => setMfaCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" placeholder="000000" disabled={bulkPending} /></label>
+      <div className="form-actions">
+        <button className="epic-button" disabled={bulkPending || reason.trim().length < 3 || mfaCode.length !== 6} onClick={() => applyBulk(true)}>Assign to {selected.size}</button>
+        <button className="epic-button secondary" disabled={bulkPending || reason.trim().length < 3 || mfaCode.length !== 6} onClick={() => applyBulk(false)}>Remove from {selected.size}</button>
+      </div>
+      <small>One MFA approval covers exactly these {selected.size} accounts. Each award is audited individually, and the batch is applied all-or-nothing.</small>
+      {bulkMessage && <p className="notice" role="status">{bulkMessage}</p>}
+    </section>}
     <section className="epic-panel"><div className="section-heading"><h2>{total} accounts</h2><Link href="/admin">Overview</Link></div>
       <div className="table-wrap"><table className="sortable-table">
         <thead><tr>
+          <th className="select-column"><input type="checkbox" aria-label="Select all eligible accounts on this page"
+            checked={selectable.length > 0 && selectable.every(user => selected.has(user.id))}
+            onChange={event => setSelected(event.target.checked ? new Set(selectable.map(user => user.id)) : new Set())} /></th>
           {COLUMNS.map(column => <th key={column.key} aria-sort={sort === column.key ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
             <button type="button" onClick={() => sortBy(column.key)}>
               {column.label}<span aria-hidden="true">{sort === column.key ? (direction === 'asc' ? '▲' : '▼') : '↕'}</span>
@@ -85,8 +136,11 @@ export default function AdminUsersPage() {
           <th>Updates</th><th></th>
         </tr></thead>
         <tbody aria-busy={loading}>{loading
-          ? Array.from({ length: 8 }, (_, index) => <tr key={index} className="row-skeleton"><td colSpan={8}><span /></td></tr>)
-          : users.map(user => <tr key={user.id}>
+          ? Array.from({ length: 8 }, (_, index) => <tr key={index} className="row-skeleton"><td colSpan={9}><span /></td></tr>)
+          : users.map(user => <tr key={user.id} className={selected.has(user.id) ? 'selected-row' : undefined}>
+            <td className="select-column"><input type="checkbox" checked={selected.has(user.id)}
+              disabled={user.account_role === 'admin' || user.account_status !== 'active'}
+              aria-label={`Select ${user.username}`} onChange={() => toggle(user.id)} /></td>
             <td><strong>{user.username}</strong><small>{user.email}</small></td>
             <td>{user.account_status}</td><td>{user.account_role}</td><td>{user.badge_count}</td>
             <td>{new Date(user.created_at).toLocaleDateString()}</td>

@@ -24,11 +24,18 @@ export async function POST(request: NextRequest) {
   const admin = await authorizeAdmin(request, { allowAal1:true });
   if (admin instanceof NextResponse) return admin;
 
-  const body = await request.json().catch(() => null) as { factorId?:unknown; code?:unknown; scope?:unknown; targetId?:unknown } | null;
+  const body = await request.json().catch(() => null) as { factorId?:unknown; code?:unknown; scope?:unknown; targetId?:unknown; targetIds?:unknown } | null;
+  // A batch grant is bound to an explicit target set. Only the badge capability may
+  // batch: it is cosmetic and reversible, unlike wallet, role, status or anonymisation.
+  const targetIds = Array.isArray(body?.targetIds) ? body.targetIds : null;
+  const batch = targetIds !== null;
   if (!body || typeof body.factorId !== 'string' || !uuid.test(body.factorId)
     || typeof body.code !== 'string' || !/^\d{6}$/.test(body.code)
     || typeof body.scope !== 'string' || !scopes.has(body.scope)
-    || (targetedScopes.has(body.scope) && (typeof body.targetId !== 'string' || !uuid.test(body.targetId)))) {
+    || (batch && (body.scope !== 'badge' || body.targetId !== undefined
+      || targetIds.length < 1 || targetIds.length > 50
+      || !targetIds.every(id => typeof id === 'string' && uuid.test(id))))
+    || (!batch && targetedScopes.has(body.scope) && (typeof body.targetId !== 'string' || !uuid.test(body.targetId)))) {
     return NextResponse.json({ error: 'Invalid step-up request' }, { status: 400 });
   }
   if (!scopeEnabled(body.scope)) return NextResponse.json({ error: 'Admin mutations disabled' }, { status: 404 });
@@ -40,7 +47,11 @@ export async function POST(request: NextRequest) {
   const tokenHash = createHash('sha256').update(token).digest('hex');
   const elevated = supabaseForToken(verified.data.access_token);
   if (!elevated) return NextResponse.json({ error: 'Admin operation unavailable' }, { status: 500 });
-  const grant = targetedScopes.has(body.scope)
+  const grant = batch
+    ? await elevated.rpc('create_admin_step_up_grant_batch', {
+      grant_token_hash:tokenHash, grant_scope:body.scope, grant_target_user_ids:targetIds,
+    })
+    : targetedScopes.has(body.scope)
     ? await elevated.rpc('create_admin_step_up_grant', {
       grant_token_hash:tokenHash, grant_scope:body.scope, grant_target_user_id:body.targetId,
     })
