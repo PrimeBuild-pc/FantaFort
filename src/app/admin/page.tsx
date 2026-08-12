@@ -98,7 +98,7 @@ export default function AdminPage() {
       <div><small>Privacy requests</small><b>{overview.pendingPrivacyRequests}</b><Link href="/admin/users?status=suspended">Review →</Link></div>
       <div><small>{'Active leagues'}</small><b>{overview.activeLeagues}</b><Link href="/leagues">Details →</Link></div>
       <div><small>{'Pending requests'}</small><b>{overview.pendingFriendRequests}</b></div>
-      <div><small>{'Listed players'}</small><b>{overview.players}</b><Link href="/players">Details →</Link></div>
+      <div><small>{'Listed players'}</small><b>{overview.players}</b><Link href="/admin/players">Player pool →</Link></div>
       <div><small>{'Errors · 24h'}</small><b>{overview.errors24h}</b><a href="#recent-errors">Details →</a></div>
       <div><small>Admin actions · 24h</small><b>{overview.adminActions24h}</b><Link href="/admin/audit">Audit →</Link></div>
       <div><small>Achievements</small><b>5</b><Link href="/admin/badges">Badge preview →</Link></div>

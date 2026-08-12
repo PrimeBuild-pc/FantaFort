@@ -43,6 +43,7 @@ export async function authorizeAdmin(request: NextRequest, options: AdminAuthori
 export const adminMfaEnforcementEnabled = () => adminRuntimeConfig().mfaEnforcementEnabled;
 export const adminMutationsEnabled = () => adminRuntimeConfig().mutationsEnabled;
 export const adminBadgeMutationsEnabled = () => adminRuntimeConfig().badgeMutationsEnabled;
+export const adminPlayerPoolMutationsEnabled = () => adminRuntimeConfig().playerPoolMutationsEnabled;
 export const adminAnonymizationEnabled = () => adminRuntimeConfig().anonymizationEnabled;
 
 export function rejectCrossOriginMutation(request: NextRequest) {
