@@ -102,6 +102,19 @@ The search itself excludes accounts already carried by **account id**, not by th
 `player_id`: that column is stamped at sync time, so rows recorded before an account was imported
 keep NULL forever and would otherwise offer a player the market already has.
 
+## Who gets recruited
+
+The daily full sync is the single writer of membership. It classifies **both** the windows it
+crawls **and** every account already recorded by the results sync, because the two crawlers sample
+different windows: recruiting only from the crawl left 5,577 accounts that qualify under our own
+rules outside the market, including 52 elite and several rank-1 finishes. Reading stored rows costs
+no provider request, and keeping one writer means the target stays meaningful.
+
+When the qualifying population exceeds `POOL_TARGET_SIZE`, slots are allocated by `TIER_QUOTA`,
+best rank first, with unused quota spilling to the strongest remaining candidates. Ranking purely by
+tier is not an option and this is measured, not theoretical: it produced 1,211 elite and 6,789
+contender and cut `regional` and `open` to **zero** — the exact cohort the pool exists for.
+
 ## Results come from the same crawl
 
 The pool import writes the leaderboards it downloads. A recruited player therefore arrives with the
@@ -119,6 +132,10 @@ Two ways out, both only on a full sync:
   that are no longer synced and whose players can never score again, so waiting out the grace period
   would keep them sellable for months. Curated and seeded entries never carried that prefix and are
   untouched; guessing from `photo_url` instead is what emptied the pool the first time.
+
+A player added after the fact — recovered from recorded history, or promoted by an administrator —
+gets `sync_recorded_player_results()`, which fills in results from team rows already stored and
+back-links their member rows. It never overwrites a result the results sync owns.
 
 ## Known limits
 
