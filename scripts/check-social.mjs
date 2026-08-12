@@ -410,6 +410,38 @@ try {
   if (!(await owner.rpc('admin_set_user_badge', { ...badgeArgs, action_request_id:crypto.randomUUID(),
     action_idempotency_key:`badge-expired:${crypto.randomUUID()}`, step_up_token_hash:expiredBadgeToken })).error) throw new Error('Expired badge grant succeeded');
 
+  // Bulk assignment: one step-up bound to an explicit target SET. The binding must be
+  // exact, so a grant minted for one set cannot be redirected at a different one.
+  const bulkTargets = [userIds[1], userIds[2]];
+  const bulkToken = tokenHash('badge-bulk');
+  ok(await owner.rpc('create_admin_step_up_grant_batch', { grant_token_hash:bulkToken, grant_scope:'badge', grant_target_user_ids:bulkTargets }));
+  const bulkArgs = { target_user_ids:bulkTargets, target_badge_slug:'beta-tester', assign_badge:true,
+    action_reason:'Synthetic bulk award', action_request_id:crypto.randomUUID(),
+    action_idempotency_key:`bulk:${crypto.randomUUID()}`, step_up_token_hash:bulkToken };
+  if (!(await owner.rpc('admin_set_user_badges_bulk', { ...bulkArgs, target_user_ids:[userIds[1]],
+    action_idempotency_key:`bulk-subset:${crypto.randomUUID()}` })).error) throw new Error('Batch grant accepted a subset of its targets');
+  if (!(await owner.rpc('admin_set_user_badges_bulk', { ...bulkArgs, target_user_ids:[...bulkTargets, userIds[0]],
+    action_idempotency_key:`bulk-extra:${crypto.randomUUID()}` })).error) throw new Error('Batch grant accepted an extra target');
+  if (!(await aal1Owner.rpc('admin_set_user_badges_bulk', { ...bulkArgs,
+    action_idempotency_key:`bulk-aal1:${crypto.randomUUID()}` })).error) throw new Error('AAL1 bulk badge mutation succeeded');
+  if (!(await owner.rpc('create_admin_step_up_grant_batch', { grant_token_hash:tokenHash('bulk-self'), grant_scope:'badge',
+    grant_target_user_ids:[userIds[1], userIds[0]] })).error) throw new Error('Batch grant allowed self-targeting');
+  if (!(await owner.rpc('create_admin_step_up_grant_batch', { grant_token_hash:tokenHash('bulk-scope'), grant_scope:'account_status',
+    grant_target_user_ids:[userIds[1]] })).error) throw new Error('Batch grants were not restricted to the badge scope');
+
+  const bulkResult = ok(await owner.rpc('admin_set_user_badges_bulk', bulkArgs));
+  if (Number(bulkResult.processed) !== 2 || Number(bulkResult.changed) !== 2) throw new Error('Bulk badge award did not apply to every target');
+  // Per-target rows carry derived ids (the log is unique per actor+request), and stay
+  // correlatable to the one approval through after_state.batchRequestId.
+  const bulkAudit = ok(await admin.from('admin_audit_log').select('target_id,request_id,after_state')
+    .eq('actor_user_id', userIds[0]).eq('action', 'badge.assign'));
+  const batchRows = bulkAudit.filter(row => row.after_state?.batchRequestId === bulkArgs.action_request_id);
+  if (batchRows.length !== 2) throw new Error('Bulk award did not write one audit row per target');
+  if (new Set(batchRows.map(row => row.request_id)).size !== 2) throw new Error('Bulk audit rows shared a request id');
+  if (new Set(batchRows.map(row => row.target_id)).size !== 2) throw new Error('Bulk audit rows did not name distinct targets');
+  const bulkReplay = ok(await owner.rpc('admin_set_user_badges_bulk', bulkArgs));
+  if (!bulkReplay.replayed) throw new Error('Bulk badge idempotency replay failed');
+
   ok(await owner.rpc('admin_set_user_badge', badgeArgs));
   const replayedBadge = ok(await owner.rpc('admin_set_user_badge', badgeArgs));
   if (!(await owner.rpc('admin_set_user_badge', { ...badgeArgs, target_badge_slug:'beta-tester' })).error) throw new Error('Badge idempotency key was reusable for another badge');
