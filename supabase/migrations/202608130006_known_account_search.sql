@@ -55,6 +55,13 @@ begin
   where member.player_id is null
     and member.username is not null
     and member.username ilike '%' || needle || '%'
+    -- player_id is stamped at sync time, so rows recorded before an account was
+    -- imported keep NULL forever. Filtering on it alone would surface players the
+    -- market already carries; the account id is the authoritative check.
+    and not exists (
+      select 1 from players carried
+      where carried.account_id = member.account_id and carried.active
+    )
     -- Only surface accounts that could actually be carried: anything deeper than the
     -- pool's qualifying rank would become a card that can never earn a point.
     and team.rank <= 300
@@ -63,6 +70,12 @@ begin
   limit bounded_limit;
 end;
 $$;
+
+-- Promotion answers to its own runtime switch. Reusing the general admin switch
+-- would mean unlocking wallet, role and status mutations just to add a player, which
+-- is the blast radius the badge capability was split out to avoid. Service role only.
+alter table public.admin_runtime_config
+  add column if not exists player_pool_mutations_enabled boolean not null default false;
 
 -- Adds one known account to the market. Administrator-only and audited.
 --
@@ -86,6 +99,12 @@ declare
   seed_rarity text;
 begin
   perform public.authorize_admin_request();
+  -- Fail closed: this mutates the market, so a database-side freeze must stop it.
+  -- It skips step-up by design, so it cannot inherit the gate the step-up trigger
+  -- applies to the other admin mutations and needs its own check.
+  if not coalesce((select player_pool_mutations_enabled from public.admin_runtime_config where singleton), false) then
+    raise insufficient_privilege using message = 'Player pool mutations disabled';
+  end if;
   if target_account_id is null or char_length(target_account_id) not between 8 and 100
     or target_tier not in ('elite', 'contender', 'regional', 'open')
     or action_reason is null or char_length(trim(action_reason)) not between 3 and 500
@@ -97,6 +116,12 @@ begin
   select * into prior from public.admin_audit_log
   where actor_user_id = auth.uid() and action = 'player.promote' and idempotency_key = action_idempotency_key;
   if prior.id is not null then
+    -- A key reused for a different account or tier is a conflict, not a replay:
+    -- returning success here would report a promotion that never happened.
+    if prior.target_id <> target_account_id
+      or coalesce(prior.after_state ->> 'tier', '') <> target_tier then
+      raise unique_violation using message = 'Idempotency key already used';
+    end if;
     return jsonb_build_object('account', prior.target_id, 'replayed', true);
   end if;
 

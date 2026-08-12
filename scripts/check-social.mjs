@@ -481,6 +481,12 @@ try {
   const found = ok(await owner.rpc('search_known_accounts', { search:'SyntheticPromotable' }));
   if (!found.some(row => row.account_id === promoteAccount && row.best_rank === 42)) throw new Error('Known-account search missed a qualifying account');
 
+  // Fail-closed runtime switch: promotion must be refused while the pool freeze is on.
+  if (!(await owner.rpc('admin_promote_known_account', { target_account_id:promoteAccount, target_tier:'contender',
+    action_reason:'Synthetic frozen promotion', action_request_id:crypto.randomUUID(),
+    action_idempotency_key:`promote-frozen:${crypto.randomUUID()}` })).error) throw new Error('Promotion ignored the player pool kill switch');
+  ok(await admin.from('admin_runtime_config').update({ player_pool_mutations_enabled:true, updated_at:new Date().toISOString() }).eq('singleton', true));
+
   const promoteKey = `promote-ok:${crypto.randomUUID()}`;
   const promoteArgs = { target_account_id:promoteAccount, target_tier:'contender',
     action_reason:'Synthetic verified promotion', action_request_id:crypto.randomUUID(), action_idempotency_key:promoteKey };
@@ -493,6 +499,20 @@ try {
   if (!ok(await owner.rpc('admin_promote_known_account', promoteArgs)).replayed) throw new Error('Promotion idempotency replay failed');
   if (!(await owner.rpc('admin_promote_known_account', { ...promoteArgs, action_idempotency_key:`promote-dup:${crypto.randomUUID()}`,
     action_request_id:crypto.randomUUID() })).error) throw new Error('Promotion re-added an account already in the market');
+  // The promoted account keeps historical member rows with player_id NULL, which is
+  // exactly the case that made a carried player show up as "missing".
+  const staleRows = ok(await admin.from('tournament_team_members').select('player_id').eq('account_id', promoteAccount).is('player_id', null));
+  ok(await admin.from('tournament_team_members').update({ player_id:null }).eq('account_id', promoteAccount));
+  if (ok(await owner.rpc('search_known_accounts', { search:'SyntheticPromotable' })).some(row => row.account_id === promoteAccount)) {
+    throw new Error('Known-account search offered a player already carried in the market');
+  }
+  void staleRows;
+
+  // A key reused for a different account must conflict, not report a false success.
+  if (!(await owner.rpc('admin_promote_known_account', { ...promoteArgs, target_account_id:'1'.repeat(32) })).error) {
+    throw new Error('Promotion replayed an idempotency key for a different account');
+  }
+  ok(await admin.from('admin_runtime_config').update({ player_pool_mutations_enabled:false, updated_at:new Date().toISOString() }).eq('singleton', true));
   ok(await admin.from('players').delete().eq('account_id', promoteAccount));
   ok(await admin.from('tournaments').delete().eq('window_id', promoteWindow));
 

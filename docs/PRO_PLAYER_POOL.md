@@ -78,6 +78,22 @@ Promotion is administrator-only, AAL2, rate limited and written to the append-on
 does **not** use a step-up grant: step-up re-authenticates irreversible actions against user data,
 while this adds a game asset that is undone by setting the row inactive.
 
+Because it skips step-up, it cannot inherit the runtime gate the step-up trigger applies to the
+other admin mutations, so it carries its own fail-closed switch:
+`admin_runtime_config.player_pool_mutations_enabled`, default false, service role only. It is
+separate from the general admin switch for the same reason the badge capability is: promoting a
+player must not require unlocking wallet, role and status mutations.
+
+Enable and disable it exactly like the badge capability:
+
+```sql
+update public.admin_runtime_config set player_pool_mutations_enabled = true, updated_at = now() where singleton;
+```
+
+The search itself excludes accounts already carried by **account id**, not by the member row's
+`player_id`: that column is stamped at sync time, so rows recorded before an account was imported
+keep NULL forever and would otherwise offer a player the market already has.
+
 ## Known limits
 
 - A player recruited from a window older than the results sync's 14-day horizon shows no statistics
