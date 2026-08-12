@@ -351,6 +351,18 @@ try {
   if (!(await admin.from('wallet_transactions').update({ reason:'tampered' }).eq('id',adjustmentRow.id)).error) throw new Error('Append-only wallet guard failed');
   const adminUsers = ok(await owner.rpc('admin_list_users', { user_search:friendName, status_filter:'active', role_filter:'user', page_index:0, page_size:25 }));
   if (adminUsers.length !== 1 || Number(adminUsers[0].total_count) !== 1) throw new Error('Admin user search failed');
+  // Sorting is applied server-side across the whole result set, not to the page the
+  // client happens to hold, and the sort key is a fixed whitelist rather than input.
+  const sortedUp = ok(await owner.rpc('admin_list_users', { page_index:0, page_size:100, sort_key:'username', sort_direction:'asc' }));
+  const sortedDown = ok(await owner.rpc('admin_list_users', { page_index:0, page_size:100, sort_key:'username', sort_direction:'desc' }));
+  const namesUp = sortedUp.map(row => row.username.toLowerCase());
+  if (namesUp.join('|') !== [...namesUp].sort().join('|')) throw new Error('Admin sort ascending failed');
+  if (sortedDown.map(row => row.username.toLowerCase()).join('|') !== [...namesUp].reverse().join('|')) throw new Error('Admin sort descending failed');
+  const byBadges = ok(await owner.rpc('admin_list_users', { page_index:0, page_size:100, sort_key:'badge_count', sort_direction:'desc' }));
+  if (byBadges.some((row, index) => index > 0 && Number(row.badge_count) > Number(byBadges[index - 1].badge_count))) throw new Error('Admin sort by badge count failed');
+  for (const bad of [{ sort_key:'password' }, { sort_direction:'; drop table players' }]) {
+    if (!(await owner.rpc('admin_list_users', { page_index:0, page_size:25, ...bad })).error) throw new Error('Admin sort whitelist failed');
+  }
   const adminDetail = ok(await owner.rpc('admin_get_user', { target_user_id:userIds[1] }));
   const adminImpact = ok(await owner.rpc('admin_preview_user_impact', { target_user_id:userIds[1] }));
   if (adminDetail.role !== 'user' || adminImpact.isAdmin || Number(adminImpact.walletTransactions) < 1
