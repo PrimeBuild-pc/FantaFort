@@ -1,6 +1,6 @@
 # Pro-player expansion plan — feasibility assessment
 
-Status: **phases 1-2 implemented (PR A)**; phases 3-6 proposed.
+Status: **phases 1-4 implemented**; phases 5-6 proposed.
 
 Target agreed with the operator: **~8,000 tracked pro players**, weighted to **NAC/NAW (US)**,
 **West-EU**, and **Italy**, including **streamers who meet a pro requirement** (e.g. Piz in Italy).
@@ -248,7 +248,55 @@ smoke test of buy/sell, lineup, standings.
 
 ---
 
-## Phase 4 — Expand to ~8,000
+## Phase 4 — Expand to ~8,000 — DONE
+
+**Measured result (real dry run, 2026-08-12): 7,063 players** from 48 windows across 3 regions,
+using 119 of a 400-request budget. Tiers: elite 300 · contender 5,173 · regional 804 · open 786.
+Up from 1,036 active.
+
+**A blocker had to be cleared first: recruitment and scoring disagreed, in both directions.**
+
+| Event | Entered the pool | Could score |
+|---|---|---|
+| FNCS Divisional Cup Division 1 | yes | yes |
+| FNCS Divisional Cup **Division 2** | **yes** | **no** |
+| FNCS Divisional Cup **Division 3** | **yes** | **no** |
+| Cash Cup | **no** | yes |
+
+Division 2/3 is precisely the contender and Italian cohort this expansion targets, so expanding
+before fixing that would have shipped roughly 5,000 cards that could never earn a point. The same
+asymmetry existed by region: intake covered EU/NAC/NAW/OCE while scoring covered EU/NAC only, so
+**every NAW and OCE player was already a dead card before this work started**.
+
+Both are now structural rather than documented: one `isCompetitiveEvent` predicate serves
+recruitment and scoring, `POOL_REGIONS` is imported by both crawlers, and `MAX_QUALIFYING_RANK`
+caps recruitment at the depth the results sync actually re-crawls. `check:pool` fails if a crawler
+hard-codes a region or if an event can recruit without being scoreable.
+
+Regions settled at **EU, NAC, NAW**. OCE and BR were dropped rather than carried: each region also
+costs results-sync budget every cycle, and neither is in the target audience.
+
+Levers applied:
+
+1. **Depth** — pagination to rank 300, page count derived from the observed page size (solo pages
+   hold ~100 entries, duo/trio far fewer) and capped at 8 pages.
+2. **West-EU + Italy allowlist** (approved): `italy`, `france`, `germany`, `spain`, `portugal`,
+   `netherlands`, `belgium`, `switzerland`, `austria`, `ireland`, plus all four UK tokens. Matched
+   against `GroupIdentity_GeoIdentity_<country>`; treated as a soft, player-declared signal. The
+   home cohort qualifies at ranks where nobody else does, but never past `MAX_QUALIFYING_RANK`.
+3. **Event types** — Cash Cups and Victory Cups now recruit as well as score.
+4. **Lookback** — 180 days, safe now that decay governs removal.
+5. **Tiers** — `players.pro_tier`, used to keep the strongest claims when the crawl exceeds target.
+
+Known and accepted: a player recruited from a window older than the results sync's 14-day horizon
+shows no statistics until they next compete. Their card reports that honestly rather than
+fabricating history, and `refresh_market_prices` leaves their seeded price alone until results exist.
+
+Mobile remains out — separate branch.
+
+### Original plan
+
+
 
 Enable one lever at a time, measuring pool size, tier distribution and request count after each:
 
