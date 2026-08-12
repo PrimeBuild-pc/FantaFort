@@ -368,10 +368,11 @@ the Fortnite-API.com finding so nobody re-investigates.
 
 ## 7b. Deferred decisions (agreed 2026-08-12)
 
-**Unconfirmed email must block the Founding 50 award.** Agreed: the account keeps its historical
-slot but is not awardable until it confirms, exactly as suspension already behaves. Implementation
-is one extra condition plus an `award_block_reason` value in `admin_preview_founding_50()` and the
-matching guard in `admin_set_user_badge`. Affects 3 of 31 candidates today.
+**Unconfirmed email must block the Founding 50 award. DONE** (`202608130007`). The account keeps
+its historical slot but is not awardable until it confirms, exactly as suspension behaves. Only
+`admin_preview_founding_50()` changed: both `admin_set_user_badge` and `admin_set_user_badges_bulk`
+already gate `founding-50` on `currently_awardable` from that preview, so they inherit the rule
+rather than restating it. Affects 3 of 31 candidates today — `Yas`, `m8_tacchino.impanato`, `Ryze`.
 
 **Not adopted as specified — the expiry/re-dating machinery.** The operator also asked that an
 account which fails to confirm within a week lose its historical slot, be set to `suspended`, and be
