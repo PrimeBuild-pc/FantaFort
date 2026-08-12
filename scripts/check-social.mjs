@@ -442,6 +442,60 @@ try {
   const bulkReplay = ok(await owner.rpc('admin_set_user_badges_bulk', bulkArgs));
   if (!bulkReplay.replayed) throw new Error('Bulk badge idempotency replay failed');
 
+  // Missing-player search: only accounts we actually hold results for, only inside
+  // the rank the results sync reaches, and never one already carried in the market.
+  if ((ok(await owner.rpc('search_known_accounts', { search:'a' }))).length !== 0) throw new Error('Known-account search accepted a too-short term');
+  if ((ok(await owner.rpc('search_known_accounts', { search:'x'.repeat(200) }))).length !== 0) throw new Error('Known-account search accepted an oversized term');
+  const knownRows = ok(await owner.rpc('search_known_accounts', { search:'zz', result_limit:5 }));
+  if (knownRows.length > 5) throw new Error('Known-account search ignored its limit');
+  if (knownRows.some(row => row.best_rank > 300)) throw new Error('Known-account search surfaced an unpayable rank');
+  const carried = ok(await admin.from('players').select('account_id').eq('active', true).limit(1));
+  if (carried.length) {
+    const carriedHandle = ok(await admin.from('players').select('handle').eq('account_id', carried[0].account_id).single());
+    const collisions = ok(await owner.rpc('search_known_accounts', { search:carriedHandle.handle.slice(0, 8) }));
+    if (collisions.some(row => row.account_id === carried[0].account_id)) throw new Error('Known-account search returned a player already in the market');
+  }
+  for (const bad of [{ target_tier:'superstar' }, { target_account_id:'short' }, { action_reason:'x' }]) {
+    if (!(await owner.rpc('admin_promote_known_account', { target_account_id:'0'.repeat(32), target_tier:'contender',
+      action_reason:'Synthetic promotion', action_request_id:crypto.randomUUID(),
+      action_idempotency_key:`promote:${crypto.randomUUID()}`, ...bad })).error) throw new Error('Promotion accepted invalid input');
+  }
+  if (!(await owner.rpc('admin_promote_known_account', { target_account_id:'0'.repeat(32), target_tier:'contender',
+    action_reason:'Synthetic promotion of an unknown account', action_request_id:crypto.randomUUID(),
+    action_idempotency_key:`promote-unknown:${crypto.randomUUID()}` })).error) throw new Error('Promotion accepted an account with no stored result');
+  if (!(await aal1Owner.rpc('admin_promote_known_account', { target_account_id:'0'.repeat(32), target_tier:'contender',
+    action_reason:'Synthetic AAL1 promotion', action_request_id:crypto.randomUUID(),
+    action_idempotency_key:`promote-aal1:${crypto.randomUUID()}` })).error) throw new Error('AAL1 promotion succeeded');
+
+  // Positive path: a synthetic account with a real stored result is promotable, is
+  // seeded from that result, and has its existing results back-linked to the new card.
+  const promoteAccount = `synthetic${crypto.randomUUID().replace(/-/g, '')}`.slice(0, 40);
+  const promoteWindow = `synthetic-window-${crypto.randomUUID()}`;
+  ok(await admin.from('tournaments').insert({ window_id:promoteWindow, event_id:'synthetic_promotion_event',
+    name:'Synthetic Promotion Cup', region:'EU', starts_at:new Date(Date.now()-7200000).toISOString(),
+    ends_at:new Date(Date.now()-3600000).toISOString() }));
+  ok(await admin.from('tournament_teams').insert({ window_id:promoteWindow, team_id:'synthetic-team', rank:42, points:120 }));
+  ok(await admin.from('tournament_team_members').insert({ window_id:promoteWindow, team_id:'synthetic-team',
+    account_id:promoteAccount, username:'SyntheticPromotable', player_id:null }));
+
+  const found = ok(await owner.rpc('search_known_accounts', { search:'SyntheticPromotable' }));
+  if (!found.some(row => row.account_id === promoteAccount && row.best_rank === 42)) throw new Error('Known-account search missed a qualifying account');
+
+  const promoteKey = `promote-ok:${crypto.randomUUID()}`;
+  const promoteArgs = { target_account_id:promoteAccount, target_tier:'contender',
+    action_reason:'Synthetic verified promotion', action_request_id:crypto.randomUUID(), action_idempotency_key:promoteKey };
+  const promoted = ok(await owner.rpc('admin_promote_known_account', promoteArgs));
+  if (promoted.handle !== 'SyntheticPromotable' || Number(promoted.bestRank) !== 42) throw new Error('Promotion did not seed from the stored result');
+  const promotedRow = ok(await admin.from('players').select('active,pro_tier,handle').eq('account_id', promoteAccount).single());
+  if (!promotedRow.active || promotedRow.pro_tier !== 'contender') throw new Error('Promoted player was not carried correctly');
+  const backLinked = ok(await admin.from('tournament_team_members').select('player_id').eq('account_id', promoteAccount));
+  if (backLinked.some(row => row.player_id !== promoteAccount)) throw new Error('Promotion did not back-link stored results');
+  if (!ok(await owner.rpc('admin_promote_known_account', promoteArgs)).replayed) throw new Error('Promotion idempotency replay failed');
+  if (!(await owner.rpc('admin_promote_known_account', { ...promoteArgs, action_idempotency_key:`promote-dup:${crypto.randomUUID()}`,
+    action_request_id:crypto.randomUUID() })).error) throw new Error('Promotion re-added an account already in the market');
+  ok(await admin.from('players').delete().eq('account_id', promoteAccount));
+  ok(await admin.from('tournaments').delete().eq('window_id', promoteWindow));
+
   ok(await owner.rpc('admin_set_user_badge', badgeArgs));
   const replayedBadge = ok(await owner.rpc('admin_set_user_badge', badgeArgs));
   if (!(await owner.rpc('admin_set_user_badge', { ...badgeArgs, target_badge_slug:'beta-tester' })).error) throw new Error('Badge idempotency key was reusable for another badge');

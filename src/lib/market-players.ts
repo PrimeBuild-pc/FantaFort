@@ -60,3 +60,32 @@ export async function fetchMarketSummary(client: SupabaseClient): Promise<Market
   if (error) throw error;
   return (data || { listed: 0, advancing: 0, declining: 0, averageMove: 0, movers: [] }) as MarketSummary;
 }
+
+export type KnownAccount = {
+  account_id: string; username: string; flag_token: string|null; best_rank: number;
+  appearances: number; latest_event: string|null; latest_region: string|null; latest_ends_at: string|null;
+};
+
+// Repeated misses are the common case for a search box, so misses are cached too:
+// without that, every keystroke past the last match re-queries for nothing.
+const knownAccountCache = new Map<string, { at: number; accounts: KnownAccount[] }>();
+const KNOWN_ACCOUNT_TTL_MS = 5 * 60_000;
+const KNOWN_ACCOUNT_CACHE_MAX = 100;
+
+/** Players seen in synced tournaments who are not carried in the market. */
+export async function searchKnownAccounts(client: SupabaseClient, search: string): Promise<KnownAccount[]> {
+  const key = search.trim().toLowerCase().slice(0, 80);
+  if (key.length < 2) return [];
+  const cached = knownAccountCache.get(key);
+  if (cached && Date.now() - cached.at < KNOWN_ACCOUNT_TTL_MS) return cached.accounts;
+
+  const { data, error } = await client.rpc('search_known_accounts', { search: key, result_limit: 10 });
+  if (error) throw error;
+  const accounts = (data || []) as KnownAccount[];
+  // Bounded so a long session cannot grow the cache without limit.
+  if (knownAccountCache.size >= KNOWN_ACCOUNT_CACHE_MAX) {
+    knownAccountCache.delete(knownAccountCache.keys().next().value as string);
+  }
+  knownAccountCache.set(key, { at: Date.now(), accounts });
+  return accounts;
+}
