@@ -7,7 +7,7 @@ import Header from '@/components/Header';
 import PlayerCard from '@/components/PlayerCard';
 import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
-import { MARKET_PAGE_SIZE, searchMarketPlayers } from '@/lib/market-players';
+import { MARKET_PAGE_SIZE, searchKnownAccounts, searchMarketPlayers, type KnownAccount } from '@/lib/market-players';
 import { supabase } from '@/lib/supabase';
 import type { Player } from '@/lib/types';
 
@@ -20,6 +20,7 @@ export default function DashboardPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [missing, setMissing] = useState<KnownAccount[]>([]);
 
   // Debounced so typing does not fire a query per keystroke.
   useEffect(() => {
@@ -32,8 +33,13 @@ export default function DashboardPage() {
         const result = await searchMarketPlayers(client, { search: query, page });
         if (cancelled) return;
         setVisible(result.players); setTotal(result.total); setFailed(false);
+        // Only when the market itself has nothing: players we have seen compete but
+        // do not carry. Cached, misses included, so repeated typing stays cheap.
+        setMissing(query.trim().length >= 2 && !result.total
+          ? await searchKnownAccounts(client, query).catch(() => [])
+          : []);
       } catch {
-        if (!cancelled) { setVisible([]); setTotal(0); setFailed(true); }
+        if (!cancelled) { setVisible([]); setTotal(0); setMissing([]); setFailed(true); }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -63,7 +69,16 @@ export default function DashboardPage() {
       </div>
       {loading ? <div className="player-grid" aria-busy="true" aria-label={t('loading')}>{Array.from({ length: 12 }, (_, index) => <div className="player-card-skeleton" key={index} />)}</div>
         : failed ? <p className="notice error" role="alert">{t('noPlayers')}</p>
-        : visible.length ? <><div className="player-grid">{visible.map(player => <PlayerCard key={player.id} player={player} />)}</div><nav className="market-pagination" aria-label={t('marketPages')}><button disabled={currentPage === 1} onClick={() => changePage(currentPage - 1)}>‹ <span>{t('previousPage')}</span></button>{pageButtons.map(number => <button className={number === currentPage ? 'active' : ''} aria-current={number === currentPage ? 'page' : undefined} onClick={() => changePage(number)} key={number}>{number}</button>)}<button disabled={currentPage === totalPages} onClick={() => changePage(currentPage + 1)}><span>{t('nextPage')}</span> ›</button></nav></> : <p className="notice">{t('noPlayers')}</p>}
+        : visible.length ? <><div className="player-grid">{visible.map(player => <PlayerCard key={player.id} player={player} />)}</div><nav className="market-pagination" aria-label={t('marketPages')}><button disabled={currentPage === 1} onClick={() => changePage(currentPage - 1)}>‹ <span>{t('previousPage')}</span></button>{pageButtons.map(number => <button className={number === currentPage ? 'active' : ''} aria-current={number === currentPage ? 'page' : undefined} onClick={() => changePage(number)} key={number}>{number}</button>)}<button disabled={currentPage === totalPages} onClick={() => changePage(currentPage + 1)}><span>{t('nextPage')}</span> ›</button></nav></> : <><p className="notice">{t('noPlayers')}</p>
+          {missing.length > 0 && <section className="epic-panel missing-players">
+            <div className="section-heading"><h2>Seen competing, not in the market</h2><span>{missing.length}</span></div>
+            <p>These accounts appear in tournaments we track but are not carried yet. Statistics are only what we already recorded — nothing here is estimated.</p>
+            <ul>{missing.map(account => <li key={account.account_id}>
+              <strong>{account.username}</strong>
+              <span>Best rank {account.best_rank} · {account.appearances} {account.appearances === 1 ? 'event' : 'events'}</span>
+              <small>{account.latest_event || 'Unknown event'}{account.latest_region ? ` · ${account.latest_region}` : ''}</small>
+            </li>)}</ul>
+          </section>}</>}
     </main>
   </div>;
 }
