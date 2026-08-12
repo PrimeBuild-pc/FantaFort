@@ -133,6 +133,39 @@ export function pagesForRankLimit(entriesPerPage: number, rankLimit = MAX_QUALIF
 }
 
 /**
+ * Event shape helpers, shared for the same reason the region list is: both crawlers
+ * need them, and a private copy in each is how the intake and scoring rules drifted
+ * apart in the first place.
+ */
+export function eventFormat(playlist = '', eventId = ''): string {
+  const value = `${playlist} ${eventId}`.toLowerCase();
+  if (/solo/.test(value)) return 'solo';
+  if (/duo/.test(value)) return 'duo';
+  if (/trio/.test(value)) return 'trio';
+  if (/squad/.test(value)) return 'squad';
+  return 'unknown';
+}
+export function sizeFromFormat(value: string): number {
+  return ({ solo: 1, duo: 2, trio: 3, squad: 4 } as Record<string, number>)[value] || 1;
+}
+
+/**
+ * Prefix written by the pool importer before tiers existed. It marks players chosen
+ * by rules we no longer stand behind - including regions that are no longer synced,
+ * whose players can never score again. Matching the importer's own marker keeps
+ * curated and seeded entries, which never carried it, out of the sweep: guessing from
+ * `photo_url` instead is what emptied the pool the first time.
+ */
+const LEGACY_NOTE_PREFIX = 'Top 100 · ';
+
+export function isLegacyPoolEntry({ proTier, eligibilityNote }: {
+  proTier?: string | null; eligibilityNote?: string | null;
+}): boolean {
+  if (proTier) return false;
+  return String(eligibilityNote || '').startsWith(LEGACY_NOTE_PREFIX);
+}
+
+/**
  * Days a player may go without appearing in an imported leaderboard before leaving
  * the market. Membership decays on time, not on absence from one particular crawl:
  * a single incremental run scans a handful of windows, so "not in this run" says

@@ -10,6 +10,7 @@ import {
   isCompetitiveEvent,
   isDisplayEvent,
   isHomeFlag,
+  isLegacyPoolEntry,
   MAX_QUALIFYING_RANK,
   pagesForRankLimit,
   POOL_GRACE_DAYS,
@@ -91,6 +92,19 @@ for (const country of ['unitedkingdom', 'england', 'scotland', 'wales']) {
 assert.equal(isHomeFlag(null), false);
 assert.equal(isHomeFlag(flag('unitedstates')), false, 'the flag rule is West-EU, not every audience region');
 
+// --- Legacy sweep ------------------------------------------------------------
+// Entries written by the importer before tiers existed carry its note prefix. They
+// must go on a full sync; curated and seeded rows never carried it and must survive,
+// because guessing from photo_url is what emptied the pool the first time.
+assert.equal(isLegacyPoolEntry({ proTier: null, eligibilityNote: 'Top 100 · FNCS Division 3 · OCE' }), true);
+assert.equal(isLegacyPoolEntry({ proTier: null, eligibilityNote: 'Curated pro player' }), false);
+assert.equal(isLegacyPoolEntry({ proTier: null, eligibilityNote: null }), false);
+assert.equal(isLegacyPoolEntry({ proTier: null, eligibilityNote: '' }), false);
+// A tiered player is current by definition, whatever its note says.
+assert.equal(isLegacyPoolEntry({ proTier: 'regional', eligibilityNote: 'Top 100 · anything' }), false);
+// Notes written by the current importer start with the tier reason, never the prefix.
+assert.equal(isLegacyPoolEntry({ proTier: null, eligibilityNote: 'FNCS Division 2 top 12 · EU · Cup' }), false);
+
 // --- Crawl bounds ------------------------------------------------------------
 assert.equal(pagesForRankLimit(100), 3, '300 ranks at 100 per page');
 assert.equal(pagesForRankLimit(50), 6);
@@ -100,6 +114,10 @@ assert.deepEqual([...POOL_REGIONS], ['EU', 'NAC', 'NAW']);
 
 // --- Source guards -----------------------------------------------------------
 const pool = readFileSync(new URL('./sync-player-pool.mjs', import.meta.url), 'utf8');
+// The importer must keep the leaderboards it downloads: discarding them is what left
+// 94% of the regional and open tiers with no statistics at all.
+assert.match(pool, /player_results/, 'the pool import must store the results it fetches');
+assert.match(pool, /isLegacyPoolEntry\(/, 'the legacy sweep must go through the shared rule');
 const results = readFileSync(new URL('./sync-fortnite.mjs', import.meta.url), 'utf8');
 assert.match(pool, /shouldDeactivate\(/, 'deactivation must go through shouldDeactivate');
 assert.doesNotMatch(pool, /!player\.photo_url/,
