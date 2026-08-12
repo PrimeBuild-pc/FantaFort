@@ -552,15 +552,37 @@ try {
       action_idempotency_key:`badge:${suspendedRequest}`, step_up_token_hash:suspendedToken })).error) throw new Error('Suspended account received Founding 50');
     ok(await admin.from('profiles').update({ account_status:'active' }).eq('id',foundingId));
 
-    // An unconfirmed email is informational and must not block the award.
+    // An unconfirmed email keeps the historical slot but blocks the award, exactly as
+    // suspension does above: the badge means "a real early account", and an address
+    // nobody confirmed is not evidence of one.
     const unconfirmedName = `unconfirmed_${runSuffix}`;
     const unconfirmed = ok(await admin.auth.admin.createUser({ email:`${unconfirmedName}@example.com`,
       password:`Test-${crypto.randomUUID()}!`, email_confirm:false, user_metadata:{ username:unconfirmedName } }));
     userIds.push(unconfirmed.user.id);
-    const unconfirmedCandidate = ok(await owner.rpc('admin_preview_founding_50')).find(candidate=>candidate.user_id===unconfirmed.user.id);
-    if (!unconfirmedCandidate || unconfirmedCandidate.email_confirmed || !unconfirmedCandidate.historical_candidate
-      || !unconfirmedCandidate.currently_awardable || unconfirmedCandidate.award_block_reason) {
-      throw new Error('Unconfirmed email blocked a Founding 50 candidate');
+    const unconfirmedRow = async () => ok(await owner.rpc('admin_preview_founding_50')).find(candidate=>candidate.user_id===unconfirmed.user.id);
+    const unconfirmedCandidate = await unconfirmedRow();
+    if (!unconfirmedCandidate || unconfirmedCandidate.email_confirmed || !unconfirmedCandidate.historical_candidate) {
+      throw new Error('Unconfirmed account lost its historical Founding 50 slot');
+    }
+    if (unconfirmedCandidate.currently_awardable || unconfirmedCandidate.award_block_reason !== 'email_unconfirmed') {
+      throw new Error('Unconfirmed email did not block the Founding 50 award');
+    }
+    const unconfirmedToken = tokenHash('badge-founding-unconfirmed');
+    ok(await owner.rpc('create_admin_step_up_grant', { grant_token_hash:unconfirmedToken, grant_scope:'badge', grant_target_user_id:unconfirmed.user.id }));
+    const unconfirmedRequest = crypto.randomUUID();
+    if (!(await owner.rpc('admin_set_user_badge', { target_user_id:unconfirmed.user.id, target_badge_slug:'founding-50', assign_badge:true,
+      action_reason:'Synthetic unconfirmed founding denial', action_request_id:unconfirmedRequest,
+      action_idempotency_key:`badge:${unconfirmedRequest}`, step_up_token_hash:unconfirmedToken })).error) {
+      throw new Error('Unconfirmed account received Founding 50');
+    }
+    // Confirming restores awardability without moving the historical position.
+    ok(await admin.auth.admin.updateUserById(unconfirmed.user.id, { email_confirm:true }));
+    const confirmedCandidate = await unconfirmedRow();
+    if (!confirmedCandidate?.currently_awardable || confirmedCandidate.award_block_reason !== null) {
+      throw new Error('Confirming the email did not restore awardability');
+    }
+    if (confirmedCandidate.candidate_order !== unconfirmedCandidate.candidate_order) {
+      throw new Error('Confirming the email moved the historical slot');
     }
 
     const foundingToken = tokenHash('badge-founding-valid');
