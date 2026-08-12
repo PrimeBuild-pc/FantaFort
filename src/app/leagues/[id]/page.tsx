@@ -7,7 +7,9 @@ import Link from 'next/link';
 import Header from '@/components/Header';
 import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
+import { searchMarketPlayers } from '@/lib/market-players';
 import { supabase } from '@/lib/supabase';
+import type { Player } from '@/lib/types';
 
 type RosterPlayer = { id: string; handle: string; photo_url?: string; price: number };
 type Row = {
@@ -21,9 +23,10 @@ type Auction = { id:number; player_id:string; starting_bid:number; current_bid:n
 
 export default function LeagueDashboardPage() {
   const { id } = useParams<{ id: string }>();
-  const { leagues, players, userId, selectLeague, finishLeague, refresh } = useGame();
+  const { leagues, userId, selectLeague, finishLeague, refresh } = useGame();
   const { locale, t } = useLocale();
   const [rows, setRows] = useState<Row[]>([]);
+  const [auctionOptions, setAuctionOptions] = useState<Player[]>([]);
   const [events, setEvents] = useState<Tournament[]>([]);
   const [picks, setPicks] = useState<Pick[]>([]);
   const [eventId, setEventId] = useState('');
@@ -64,13 +67,20 @@ export default function LeagueDashboardPage() {
     setPlayerId(value => value || mine?.roster[0]?.id || '');
     setPartnerId(value => value || mine?.roster[1]?.id || '');
     const ownedIds = new Set(nextRows.flatMap(row => row.roster.map(player => player.id)));
-    setAuctionPlayer(value => value && !ownedIds.has(value) ? value : players.find(player => !ownedIds.has(player.id))?.id || '');
+    setAuctionPlayer(value => value && !ownedIds.has(value) ? value : auctionOptions.find(player => !ownedIds.has(player.id))?.id || '');
     const currentAuction = auctions.data as unknown as Auction | null;
     if (currentAuction) setBid(currentAuction.current_bid ? currentAuction.current_bid + 100 : currentAuction.starting_bid);
     setUpdated(new Date());
-  }, [id, players, userId]);
+  }, [auctionOptions, id, userId]);
   useEffect(() => { selectLeague(id); load(); const timer = setInterval(load, 30000); return () => clearInterval(timer); }, [id, load, selectLeague]);
   useEffect(() => { const timer = setInterval(() => setClock(Date.now()), 1000); return () => clearInterval(timer); }, []);
+  // Only the auction form needs a player list, and it never showed more than 150.
+  useEffect(() => {
+    if (!supabase) return;
+    searchMarketPlayers(supabase, { page: 1, pageSize: 100 })
+      .then(result => setAuctionOptions(result.players))
+      .catch(() => setAuctionOptions([]));
+  }, []);
 
   const mine = rows.find(row => row.user_id === userId);
   const leader = Math.max(1, ...rows.map(row => row.points));
@@ -120,7 +130,7 @@ export default function LeagueDashboardPage() {
       </article>)}
     </div>
 
-    {league?.status === 'active' && league.draftMode === 'auction' && <section className="auction-panel epic-panel"><div><div className="eyebrow">LIVE AUCTION</div><h2>{t('auctionDraft')}</h2><p>{t('auctionRules')}</p></div>{auction ? <div className="active-auction"><div><small>{t('player')}</small><h3>{auction.players?.handle || auction.player_id}</h3><span>{t('marketPrice')}: {auction.players?.price?.toLocaleString(locale) || '—'} C</span></div><div className="auction-price"><small>{t('currentBid')}</small><b>{(auction.current_bid || auction.starting_bid).toLocaleString(locale)} C</b><span>{remaining}s</span></div>{remaining > 0 ? <form onSubmit={event=>{event.preventDefault();auctionAction('bid')}}><label>{t('yourBid')}<input type="number" min={auction.current_bid ? auction.current_bid + 100 : auction.starting_bid} step="100" value={bid} onChange={event=>setBid(Number(event.target.value))}/></label><button className="epic-button" disabled={!mine || mine.coins < requiredBidFunds}>{t('placeBid')}</button>{league.ownerId===userId&&!auction.bidder_id&&<button type="button" className="link-button danger" onClick={()=>auctionAction('cancel')}>{t('cancelAuction')}</button>}</form>:<button className="epic-button" onClick={()=>auctionAction('settle')}>{t('settleAuction')}</button>}</div>:league.ownerId===userId&&marketOpen?<form onSubmit={event=>{event.preventDefault();auctionAction('start')}}><div className="settings-grid"><label>{t('player')}<select value={auctionPlayer} onChange={event=>setAuctionPlayer(event.target.value)}>{players.filter(player=>!rows.some(row=>row.roster.some(item=>item.id===player.id))).slice(0,150).map(player=><option value={player.id} key={player.id}>{player.handle} · {player.price.toLocaleString(locale)} C</option>)}</select></label><label>{t('auctionDuration')}<select value={auctionDuration} onChange={event=>setAuctionDuration(Number(event.target.value))}>{[30,60,90,120,180,300].map(value=><option value={value} key={value}>{value}s</option>)}</select></label></div><button className="epic-button">{t('startAuction')}</button></form>:<p className="notice">{marketOpen?t('waitingForAuction'):t('marketClosed')}</p>}</section>}
+    {league?.status === 'active' && league.draftMode === 'auction' && <section className="auction-panel epic-panel"><div><div className="eyebrow">LIVE AUCTION</div><h2>{t('auctionDraft')}</h2><p>{t('auctionRules')}</p></div>{auction ? <div className="active-auction"><div><small>{t('player')}</small><h3>{auction.players?.handle || auction.player_id}</h3><span>{t('marketPrice')}: {auction.players?.price?.toLocaleString(locale) || '—'} C</span></div><div className="auction-price"><small>{t('currentBid')}</small><b>{(auction.current_bid || auction.starting_bid).toLocaleString(locale)} C</b><span>{remaining}s</span></div>{remaining > 0 ? <form onSubmit={event=>{event.preventDefault();auctionAction('bid')}}><label>{t('yourBid')}<input type="number" min={auction.current_bid ? auction.current_bid + 100 : auction.starting_bid} step="100" value={bid} onChange={event=>setBid(Number(event.target.value))}/></label><button className="epic-button" disabled={!mine || mine.coins < requiredBidFunds}>{t('placeBid')}</button>{league.ownerId===userId&&!auction.bidder_id&&<button type="button" className="link-button danger" onClick={()=>auctionAction('cancel')}>{t('cancelAuction')}</button>}</form>:<button className="epic-button" onClick={()=>auctionAction('settle')}>{t('settleAuction')}</button>}</div>:league.ownerId===userId&&marketOpen?<form onSubmit={event=>{event.preventDefault();auctionAction('start')}}><div className="settings-grid"><label>{t('player')}<select value={auctionPlayer} onChange={event=>setAuctionPlayer(event.target.value)}>{auctionOptions.filter(player=>!rows.some(row=>row.roster.some(item=>item.id===player.id))).slice(0,150).map(player=><option value={player.id} key={player.id}>{player.handle} · {player.price.toLocaleString(locale)} C</option>)}</select></label><label>{t('auctionDuration')}<select value={auctionDuration} onChange={event=>setAuctionDuration(Number(event.target.value))}>{[30,60,90,120,180,300].map(value=><option value={value} key={value}>{value}s</option>)}</select></label></div><button className="epic-button">{t('startAuction')}</button></form>:<p className="notice">{marketOpen?t('waitingForAuction'):t('marketClosed')}</p>}</section>}
 
     {league?.status === 'active' && <section className="strategy-panel epic-panel">
       <div><div className="eyebrow">STRATEGY LAB</div><h2>{t('spendRemainder')}</h2><p>{t('strategyRules')}</p></div>
