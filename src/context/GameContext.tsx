@@ -4,14 +4,13 @@
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
 import { AccountPortfolio, League, LeagueSettings, Player, Profile } from '@/lib/types';
 import { COMMUNICATION_CONSENT_VERSION } from '@/lib/community';
-import { getAllMarketPlayers } from '@/lib/market-players';
+import { fetchPlayersByIds } from '@/lib/market-players';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from './LocaleContext';
 
 interface GameState {
   coins: number;
   team: Player[];
-  players: Player[];
   leagues: League[];
   activeLeagueId: string | null;
   profile: Profile | null;
@@ -43,27 +42,10 @@ const GameContext = createContext<GameState | undefined>(undefined);
 const MAX_ROSTER = 3;
 const EMPTY_PORTFOLIO: AccountPortfolio = { balance: 0, lockedBalance: 0, holdingsValue: 0, totalEquity: 0, unrealizedPnl: 0, realizedPnl: 0, totalPnl: 0, dailyPnl: 0, rescueAvailable: false, rescueReason: 'account_age', positions: [] };
 
-function mapPlayer(row: Record<string, unknown>): Player {
-  return {
-    id: String(row.id), handle: String(row.handle), realName: row.real_name as string | null,
-    team: row.organization as string | null, photoUrl: row.photo_url as string | null,
-    rarity: row.rarity as Player['rarity'], price: Number(row.price), earnings: row.earnings as number | null,
-    birthDate: row.birth_date as string | null, tournamentPoints: Number(row.tournament_points || 0),
-    cupsPlayed: Number(row.cups_played || 0), tournamentWins: Number(row.tournament_wins || 0),
-    bestPlacement: row.best_placement == null ? null : Number(row.best_placement),
-    averagePlacement: row.average_placement == null ? null : Number(row.average_placement),
-    pointsPerMatch: Number(row.points_per_match || 0), winRate: Number(row.win_rate || 0),
-    priceChange: Number(row.price_change || 0),
-    teammates: (row.teammates || []) as Player['teammates'],
-    eligibility: String(row.eligibility_note || ''),
-  };
-}
-
 export function GameProvider({ children }: { children: ReactNode }) {
   const { setLocale } = useLocale();
   const [coins, setCoins] = useState(10000);
   const [team, setTeam] = useState<Player[]>([]);
-  const [players, setPlayers] = useState<Player[]>([]);
   const [leagues, setLeagues] = useState<League[]>([]);
   const [activeLeagueId, setActiveLeagueId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -74,9 +56,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const loadCloudGame = useCallback(async (id: string, preferredLeague?: string | null) => {
     if (!supabase) return;
-    const [profileResult, marketRows, membershipsResult, portfolioResult] = await Promise.all([
+    const [profileResult, membershipsResult, portfolioResult] = await Promise.all([
       supabase.from('profiles').select('username,locale,reward_points,experience_points,is_admin,wallet_cents,name_style,community_email_opt_in,community_email_opted_in_at,community_email_opted_out_at,public_lineup_enabled').eq('id', id).single(),
-      getAllMarketPlayers(supabase),
       supabase.from('league_members').select('league_id,coins,reserved_coins').eq('user_id', id),
       supabase.rpc('get_account_portfolio'),
     ]);
@@ -85,7 +66,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (portfolioResult.error) throw portfolioResult.error;
 
     const portfolio = (portfolioResult.data || EMPTY_PORTFOLIO) as AccountPortfolio;
-    const market: Player[] = marketRows.map(mapPlayer);
     const leagueIds = membershipsResult.data.map(row => row.league_id);
     let leagueList: League[] = [];
     if (leagueIds.length) {
@@ -130,11 +110,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
       communityEmailOptedOutAt:profileResult.data.community_email_opted_out_at,
       publicLineupEnabled:profileResult.data.public_lineup_enabled,
     };
-    setPlayers(market);
+    // Resolve only the roster, never the whole market: this line used to force the
+    // entire player pool to exist in the browser on every page, admin included.
+    setTeam(rosterIds.length ? await fetchPlayersByIds(supabase, rosterIds) : []);
     setLeagues(leagueList);
     setActiveLeagueId(selected);
     setCoins(currentCoins);
-    setTeam(market.filter(player => rosterIds.includes(player.id)));
     setProfile(nextProfile);
     setAccountPortfolio(portfolio);
     if (!localStorage.getItem('fantafort-locale')) setLocale(nextProfile.locale);
@@ -231,7 +212,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const signOut = async () => { if (supabase) await supabase.auth.signOut(); };
 
   return <GameContext.Provider value={{
-    coins, team, players, leagues, activeLeagueId, profile, accountPortfolio, loading, userEmail, userId,
+    coins, team, leagues, activeLeagueId, profile, accountPortfolio, loading, userEmail, userId,
     addToTeam, removeFromTeam, selectLeague,
     accountBuyPlayer: playerId => accountTrade('buy', playerId),
     accountSellPlayer: playerId => accountTrade('sell', playerId),
