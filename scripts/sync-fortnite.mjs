@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { fetchOsirionJson, isLeaderboardResponse, isTournamentResponse } from '../src/lib/osirion-fetch.ts';
-import { isScoringEvent } from '../src/lib/pro-eligibility.ts';
+import { isCompetitiveEvent, pagesForRankLimit, POOL_REGIONS } from '../src/lib/pro-eligibility.ts';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -33,10 +33,10 @@ function eventFormat(playlist = '', eventId = '') {
 function formatFromSize(size) { return ['unknown', 'solo', 'duo', 'trio', 'squad'][size] || 'unknown'; }
 function sizeFromFormat(value) { return { solo:1, duo:2, trio:3, squad:4 }[value] || 1; }
 
-for (const region of ['EU', 'NAC']) {
+for (const region of POOL_REGIONS) {
   const data = await fetchOsirionJson(`/tournaments?region=${region}&includeHistoricData=true`, isTournamentResponse);
   const windows = data.tournaments
-    .filter(event => isScoringEvent(event.eventId))
+    .filter(event => isCompetitiveEvent(event.eventId))
     .flatMap(event => event.eventWindows.map(window => ({ event, window })))
     .filter(({ window }) => Date.parse(window.endTime) >= cutoff && Date.parse(window.beginTime) <= future)
     .map(({ event, window }) => ({ event, window, location:window.scoreLocations.find(item => item.isMain) || window.scoreLocations[0] }))
@@ -63,12 +63,16 @@ for (const region of ['EU', 'NAC']) {
     });
   }
 
-  // At most 16 leaderboard requests per region, below the provider's 60/minute limit.
+  // Scoring must reach at least as deep as intake does, or the pool fills with
+  // players who can never earn a point. Regions and depth both come from the shared
+  // eligibility module for exactly that reason. Budget: 3 regions x 8 windows x <=3
+  // pages, comfortably inside the provider's ~60 requests/minute.
   for (const { event, window, location } of windows.filter(({ window }) => Date.parse(window.beginTime) <= now).slice(0, 8)) {
     const expectedTeamSize = sizeFromFormat(eventFormat(window.playlistId, event.eventId));
     let totalPages = 1;
+    let plannedPages = 1;
     let largestTeam = 1;
-    for (let page = 0; page < Math.min(totalPages, 2); page++) {
+    for (let page = 0; page < Math.min(totalPages, plannedPages); page++) {
       const params = new URLSearchParams({
         leaderboardEventId:location.leaderboardEventId,
         leaderboardEventWindowId:location.leaderboardEventWindowId,
@@ -76,6 +80,7 @@ for (const region of ['EU', 'NAC']) {
       });
       const { leaderboard } = await fetchOsirionJson(`/tournaments/leaderboard?${params}`, isLeaderboardResponse);
       totalPages = leaderboard.totalPages;
+      if (page === 0) plannedPages = pagesForRankLimit(leaderboard.entries.length);
       for (const entry of leaderboard.entries) {
         const visiblePlayers = entry.players || [];
         const teamId = entry.teamId || visiblePlayers.map(player => player.accountId).filter(Boolean).sort().join(':');
