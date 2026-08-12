@@ -2,6 +2,7 @@ type AdminEnvironment = {
   NODE_ENV?: string;
   ADMIN_MUTATIONS_ENABLED?: string;
   ADMIN_BADGE_MUTATIONS_ENABLED?: string;
+  ADMIN_PLAYER_POOL_MUTATIONS_ENABLED?: string;
   ADMIN_MFA_ENFORCEMENT_ENABLED?: string;
   ADMIN_ANONYMIZATION_ENABLED?: string;
   SUPABASE_SECRET_KEY?: string;
@@ -21,6 +22,11 @@ export function parseAdminRuntimeConfig(env: AdminEnvironment) {
     // administrator's own AAL2 session and never needs a server Supabase key, so it is
     // neither implied by nor implies ADMIN_MUTATIONS_ENABLED.
     badgeMutationsEnabled: exactlyTrue(env.ADMIN_BADGE_MUTATIONS_ENABLED),
+    // Adding a player to the market is its own least-privilege capability, like
+    // badges: it must not require unlocking wallet, role and status mutations. The
+    // database carries a matching admin_runtime_config.player_pool_mutations_enabled,
+    // and both have to be true - either one alone leaves promotion disabled.
+    playerPoolMutationsEnabled: exactlyTrue(env.ADMIN_PLAYER_POOL_MUTATIONS_ENABLED),
     anonymizationEnabled: mutationsEnabled && exactlyTrue(env.ADMIN_ANONYMIZATION_ENABLED),
     mfaEnforcementEnabled: env.NODE_ENV === 'production' || env.ADMIN_MFA_ENFORCEMENT_ENABLED !== 'false',
     serverKeyConfigured,

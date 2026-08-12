@@ -84,11 +84,19 @@ other admin mutations, so it carries its own fail-closed switch:
 separate from the general admin switch for the same reason the badge capability is: promoting a
 player must not require unlocking wallet, role and status mutations.
 
-Enable and disable it exactly like the badge capability:
+Enable it exactly like the badge capability — **both** switches are required, either alone leaves
+promotion disabled:
 
-```sql
-update public.admin_runtime_config set player_pool_mutations_enabled = true, updated_at = now() where singleton;
-```
+1. Database (service role only, from the Supabase SQL editor):
+   ```sql
+   update public.admin_runtime_config set player_pool_mutations_enabled = true, updated_at = now() where singleton;
+   ```
+2. Vercel: add `ADMIN_PLAYER_POOL_MUTATIONS_ENABLED=true` (Production, sensitive, **never**
+   `NEXT_PUBLIC_`) and redeploy.
+3. Verify at `/admin/players`: the read-only notice disappears when both are on.
+
+Promote from `/admin/players`: search a name, pick a tier, give a reason. Disable by reverting
+either switch; existing promotions are undone by setting the player inactive.
 
 The search itself excludes accounts already carried by **account id**, not by the member row's
 `player_id`: that column is stamped at sync time, so rows recorded before an account was imported
