@@ -22,7 +22,7 @@ service. Categories deliberately **not** processed: real name (except where the
 curated subset publishes it), contact details, address, nationality documents,
 in-game behavioural telemetry, any special category under art. 9.
 
-The curated subset (eight marquee players, `public/players`) adds date of birth,
+The curated subset (`public/players`) adds date of birth,
 earnings snapshot and photograph. This is the narrowest documented extension and
 should not be broadened without revisiting this assessment and the licensing
 position of the images.
@@ -101,3 +101,10 @@ Photographs raise two issues this assessment does **not** resolve:
 
 Neither is cured by a lawful GDPR basis. Keep the current policy: no photograph
 without an explicit licence, and "unavailable" for everyone else.
+
+Checking the file pages in August 2026 removed two of the eight portraits: Bugha's
+was "all rights reserved" with permission granted to Liquipedia only, and Mongraal's
+came from the Red Bull Content Pool under Red Bull's own editorial terms. Neither was
+a CC BY-SA file. The remaining five credited portraits are by Michal Konkol; one is
+still unattributed pending its file page. Being hosted on a wiki is not a licence,
+and that check has to be repeated before any new image is added.
