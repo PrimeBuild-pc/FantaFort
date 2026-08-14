@@ -8,7 +8,10 @@ export const getFeaturedPlayers=unstable_cache(async()=>{
   if(!supabase)return [];
   const {data,error}=await supabase.rpc('get_featured_players',{player_ids:[...featuredPlayerIds]});
   if(error)throw error;
-  return (data as PublicPlayer[]).filter(player=>player.photo_url);
+  // A curated profile stands on its sourced statistics, so it survives losing its
+  // portrait: two images turned out not to be licensed for redistribution and were
+  // removed, and dropping those pages would have turned live URLs into 404s.
+  return data as PublicPlayer[];
 },['featured-public-players'],{revalidate:900});
 
 export async function getFeaturedPlayer(id:string){return (await getFeaturedPlayers()).find(player=>player.id===id)}

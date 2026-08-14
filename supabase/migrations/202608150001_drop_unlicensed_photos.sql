@@ -1,0 +1,12 @@
+-- Two curated portraits turned out not to be redistributable by us, so the image
+-- files are gone and the rows must stop pointing at them.
+--
+--   bugha    — copyright Sentinels, all rights reserved. Liquipedia holds permission
+--              for its own educational and reference use; that does not extend to
+--              third parties republishing the file.
+--   mongraal — Red Bull Content Pool, licensed for editorial use under Red Bull's
+--              own terms to registered users. Not a CC BY-SA file.
+--
+-- Only photo_url is cleared: birth date, earnings and organization come from the
+-- text of the same public pages, which is a separate question from image licensing.
+update public.players set photo_url = null where id in ('bugha', 'mongraal');
