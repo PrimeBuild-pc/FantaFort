@@ -20,6 +20,13 @@ const styles = [{ id:'storm', cost:100 }, { id:'victory', cost:250 }, { id:'lege
 type XpEvent = { id:number; type:'league_completed'|'league_won'; amount:number; created_at:string; leagues:{name:string}|null };
 type Departure = { id:number; league_id:string|null; league_name:string; left_at:string };
 type GlobalSummary = { rank:number; username:string; net_worth:number; badges:PublicBadge[] };
+const exportCopy:Record<Locale,{title:string;help:string;action:string;working:string;done:string}>={
+  en:{title:'Download your data',help:'A JSON copy of the personal data held about your account, in a portable format (GDPR arts. 15 and 20). Competitive player and tournament records are not included: they are not personal data about you.',action:'Download my data',working:'Preparing your export…',done:'Export downloaded.'},
+  it:{title:'Scarica i tuoi dati',help:'Una copia JSON dei dati personali relativi al tuo account, in formato portabile (artt. 15 e 20 GDPR). I dati di giocatori e tornei non sono inclusi: non sono dati personali che ti riguardano.',action:'Scarica i miei dati',working:'Preparazione dell’export…',done:'Export scaricato.'},
+  es:{title:'Descarga tus datos',help:'Una copia JSON de los datos personales de tu cuenta, en formato portátil (arts. 15 y 20 RGPD). No incluye datos de jugadores ni torneos.',action:'Descargar mis datos',working:'Preparando la exportación…',done:'Exportación descargada.'},
+  de:{title:'Deine Daten herunterladen',help:'Eine JSON-Kopie der zu deinem Konto gespeicherten personenbezogenen Daten in einem übertragbaren Format (Art. 15 und 20 DSGVO). Spieler- und Turnierdaten sind nicht enthalten.',action:'Meine Daten herunterladen',working:'Export wird vorbereitet…',done:'Export heruntergeladen.'},
+  fr:{title:'Télécharger vos données',help:'Une copie JSON des données personnelles liées à votre compte, dans un format portable (art. 15 et 20 RGPD). Les données de joueurs et de tournois ne sont pas incluses.',action:'Télécharger mes données',working:'Préparation de l’export…',done:'Export téléchargé.'},
+};
 const deletionCopy:Record<Locale,{title:string;help:string;action:string;confirm:string}>={
   en:{title:'Account deletion',help:'Leave or close open leagues first. The request immediately suspends access; after identity review we normally complete deletion or anonymization within 30 days.',action:'Request account deletion',confirm:'Suspend access and submit the account deletion request?'},
   it:{title:'Cancellazione account',help:'Prima lascia o chiudi le leghe aperte. La richiesta sospende subito l’accesso; dopo la verifica dell’identità completiamo normalmente cancellazione o anonimizzazione entro 30 giorni.',action:'Richiedi cancellazione account',confirm:'Sospendere l’accesso e inviare la richiesta di cancellazione?'},
@@ -35,6 +42,7 @@ export default function AccountPage() {
   const [username, setUsername] = useState(profile?.username || '');
   const [selectedLocale, setSelectedLocale] = useState<Locale>(profile?.locale || locale);
   const [message, setMessage] = useState('');
+  const [exporting, setExporting] = useState(false);
   const [history, setHistory] = useState<{ label:string; points:number }[]>([]);
   const [xpHistory, setXpHistory] = useState<XpEvent[]>([]);
   const [departures, setDepartures] = useState<Departure[]>([]);
@@ -89,6 +97,18 @@ export default function AccountPage() {
     setMessage(error?.message || t('passwordUpdated'));
     if (!error) { setCurrentPassword(''); setNewPassword(''); }
   };
+  const downloadData = async () => {
+    if (!supabase) return;
+    setExporting(true); setMessage(exportCopy[locale].working);
+    const { data, error } = await supabase.rpc('export_account_data');
+    setExporting(false);
+    if (error) return setMessage(error.message);
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type:'application/json' }));
+    const link = document.createElement('a');
+    link.href = url; link.download = `fantafort-account-export-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click(); URL.revokeObjectURL(url);
+    setMessage(exportCopy[locale].done);
+  };
   const requestDeletion = async () => {
     if (!supabase || !profile || !window.confirm(deletionCopy[locale].confirm)) return;
     const { error } = await supabase.rpc('request_account_deletion', { confirm_username:profile.username });
@@ -115,7 +135,7 @@ export default function AccountPage() {
     </div>
 
     <div className="account-detail-grid">
-      <section className="epic-panel security-panel"><div className="eyebrow">SECURITY</div><h2>{t('security')}</h2><form onSubmit={changePassword}><label>{t('currentPassword')}<input type="password" minLength={8} maxLength={128} value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} autoComplete="current-password" required /></label><label>{t('newPassword')}<input type="password" minLength={10} maxLength={128} value={newPassword} onChange={event => setNewPassword(event.target.value)} autoComplete="new-password" required /><small>{t('passwordRules')}</small></label><button className="epic-button secondary">{t('changePassword')}</button></form><div className="danger-zone"><h3>{deletionCopy[locale].title}</h3><p>{deletionCopy[locale].help}</p><button className="danger-button" type="button" onClick={requestDeletion}>{deletionCopy[locale].action}</button><small><Link href="/privacy">Privacy</Link> · <a href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a></small></div></section>
+      <section className="epic-panel security-panel"><div className="eyebrow">SECURITY</div><h2>{t('security')}</h2><form onSubmit={changePassword}><label>{t('currentPassword')}<input type="password" minLength={8} maxLength={128} value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} autoComplete="current-password" required /></label><label>{t('newPassword')}<input type="password" minLength={10} maxLength={128} value={newPassword} onChange={event => setNewPassword(event.target.value)} autoComplete="new-password" required /><small>{t('passwordRules')}</small></label><button className="epic-button secondary">{t('changePassword')}</button></form><div className="privacy-export"><h3>{exportCopy[locale].title}</h3><p>{exportCopy[locale].help}</p><button className="epic-button secondary" type="button" onClick={downloadData} disabled={exporting}>{exporting ? exportCopy[locale].working : exportCopy[locale].action}</button></div><div className="danger-zone"><h3>{deletionCopy[locale].title}</h3><p>{deletionCopy[locale].help}</p><button className="danger-button" type="button" onClick={requestDeletion}>{deletionCopy[locale].action}</button><small><Link href="/privacy">Privacy</Link> · <a href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a></small></div></section>
       <section className="epic-panel progression-panel"><div className="eyebrow">XP</div><h2>{t('progression')}</h2><p>{t('xpRules')}</p><div className="activity-list">{xpHistory.length ? xpHistory.map(event => <article key={event.id}><span><strong>{event.type === 'league_won' ? t('leagueWon') : t('leagueCompleted')}</strong><small>{event.leagues?.name || t('league')}</small></span><b>+{event.amount} XP</b></article>) : <p>{t('noXpHistory')}</p>}</div></section>
     </div>
 
