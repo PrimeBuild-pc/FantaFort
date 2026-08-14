@@ -28,6 +28,14 @@ for (let from = 0; ; from += 1000) {
   if (data.length < 1000) break;
 }
 const existingByAccount = new Map(existing.map(player => [player.account_id, player]));
+
+// Article 21 objections have to survive the crawl: this importer re-creates every
+// account it sees with `active: true`, so an excluded player must be dropped before
+// it is ever remembered. Fail closed rather than silently re-importing an objector.
+const objections = await supabase.from('player_data_objections').select('account_id');
+if (objections.error) throw objections.error;
+const objected = new Set(objections.data.map(row => row.account_id));
+
 const imported = new Map();
 let scannedWindows = 0;
 
@@ -42,6 +50,7 @@ const resultRows = new Map();
 
 /** Keeps the strongest claim when a player appears in several events. */
 function remember(account, classification, eventLabel, rank) {
+  if (objected.has(account.accountId)) return;
   const current = imported.get(account.accountId);
   if (current) {
     const better = TIER_PRIORITY[classification.tier] - TIER_PRIORITY[current.tier]
