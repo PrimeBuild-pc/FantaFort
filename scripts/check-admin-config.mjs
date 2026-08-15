@@ -4,7 +4,7 @@ import { parseAdminRuntimeConfig } from '../src/lib/admin/config.ts';
 const parse = overrides => parseAdminRuntimeConfig({ NODE_ENV:'development', ...overrides });
 
 assert.deepEqual(parse({}), {
-  mutationsEnabled:false, badgeMutationsEnabled:false, playerPoolMutationsEnabled:false, anonymizationEnabled:false, mfaEnforcementEnabled:true, serverKeyConfigured:false,
+  mutationsEnabled:false, badgeMutationsEnabled:false, playerPoolMutationsEnabled:false, resultsImportEnabled:false, anonymizationEnabled:false, mfaEnforcementEnabled:true, serverKeyConfigured:false,
 });
 assert.equal(parse({ ADMIN_MUTATIONS_ENABLED:'false', ADMIN_ANONYMIZATION_ENABLED:'false', ADMIN_MFA_ENFORCEMENT_ENABLED:'false' }).mutationsEnabled, false);
 assert.equal(parse({ ADMIN_MFA_ENFORCEMENT_ENABLED:'false' }).mfaEnforcementEnabled, false);
@@ -43,5 +43,17 @@ assert.equal(parse({ ADMIN_BADGE_MUTATIONS_ENABLED:'true' }).playerPoolMutations
 assert.equal(parse({ ADMIN_PLAYER_POOL_MUTATIONS_ENABLED:'true' }).mutationsEnabled, false);
 assert.equal(parse({ ADMIN_PLAYER_POOL_MUTATIONS_ENABLED:'true' }).badgeMutationsEnabled, false);
 assert.equal(parse({ ADMIN_PLAYER_POOL_MUTATIONS_ENABLED:'true' }).anonymizationEnabled, false);
+
+// Importing tournament results is its own capability too, same terms as player-pool.
+assert.equal(parse({}).resultsImportEnabled, false);
+for (const value of ['false', 'TRUE', '1', 'yes', '']) {
+  assert.equal(parse({ ADMIN_RESULTS_IMPORT_ENABLED:value }).resultsImportEnabled, false);
+}
+assert.equal(parse({ ADMIN_RESULTS_IMPORT_ENABLED:'true' }).resultsImportEnabled, true);
+assert.equal(parse({ ADMIN_MUTATIONS_ENABLED:'true', SUPABASE_SECRET_KEY:'test-placeholder' }).resultsImportEnabled, false);
+assert.equal(parse({ ADMIN_PLAYER_POOL_MUTATIONS_ENABLED:'true' }).resultsImportEnabled, false);
+assert.equal(parse({ ADMIN_RESULTS_IMPORT_ENABLED:'true' }).mutationsEnabled, false);
+assert.equal(parse({ ADMIN_RESULTS_IMPORT_ENABLED:'true' }).playerPoolMutationsEnabled, false);
+assert.equal(parse({ ADMIN_RESULTS_IMPORT_ENABLED:'true' }).anonymizationEnabled, false);
 
 console.log('Admin environment fail-closed checks passed.');

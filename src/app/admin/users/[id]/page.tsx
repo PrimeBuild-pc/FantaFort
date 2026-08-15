@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import AdminNav from '@/components/AdminNav';
 import BadgeList from '@/components/BadgeList';
 import Header from '@/components/Header';
 import { adminFetch, adminStepUp } from '@/lib/admin/client';
@@ -127,7 +128,7 @@ export default function AdminUserDetailPage() {
   // Reason and MFA inputs are shared by every mutation, so they stay usable when either capability is on.
   const anyMutationEnabled = mutationsEnabled || badgeMutationsEnabled;
 
-  return <div className="app-shell"><Header /><main className="container page-content">
+  return <div className="app-shell"><Header /><AdminNav /><main className="container page-content">
     <div className="page-title"><div className="eyebrow">ADMIN · USER DETAIL</div><h1>{user?.username || 'Account'}</h1><p>{anyMutationEnabled ? 'Sensitive actions require an explicit reason and confirmation.' : 'Read-only view. Mutations are disabled by server configuration.'}</p></div>
     <p className="notice">General admin mutations: <strong>{mutationsEnabled?'enabled':'disabled (fail-closed)'}</strong> · Badge mutations: <strong>{badgeMutationsEnabled?'enabled':'disabled (fail-closed)'}</strong>.</p>
     {message && <p className="notice error" role="alert">{message}</p>}

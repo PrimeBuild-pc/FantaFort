@@ -44,6 +44,7 @@ export const adminMfaEnforcementEnabled = () => adminRuntimeConfig().mfaEnforcem
 export const adminMutationsEnabled = () => adminRuntimeConfig().mutationsEnabled;
 export const adminBadgeMutationsEnabled = () => adminRuntimeConfig().badgeMutationsEnabled;
 export const adminPlayerPoolMutationsEnabled = () => adminRuntimeConfig().playerPoolMutationsEnabled;
+export const adminResultsImportEnabled = () => adminRuntimeConfig().resultsImportEnabled;
 export const adminAnonymizationEnabled = () => adminRuntimeConfig().anonymizationEnabled;
 
 export function rejectCrossOriginMutation(request: NextRequest) {

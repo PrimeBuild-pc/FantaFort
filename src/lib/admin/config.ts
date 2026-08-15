@@ -3,6 +3,7 @@ type AdminEnvironment = {
   ADMIN_MUTATIONS_ENABLED?: string;
   ADMIN_BADGE_MUTATIONS_ENABLED?: string;
   ADMIN_PLAYER_POOL_MUTATIONS_ENABLED?: string;
+  ADMIN_RESULTS_IMPORT_ENABLED?: string;
   ADMIN_MFA_ENFORCEMENT_ENABLED?: string;
   ADMIN_ANONYMIZATION_ENABLED?: string;
   SUPABASE_SECRET_KEY?: string;
@@ -27,6 +28,10 @@ export function parseAdminRuntimeConfig(env: AdminEnvironment) {
     // database carries a matching admin_runtime_config.player_pool_mutations_enabled,
     // and both have to be true - either one alone leaves promotion disabled.
     playerPoolMutationsEnabled: exactlyTrue(env.ADMIN_PLAYER_POOL_MUTATIONS_ENABLED),
+    // Same least-privilege shape as player-pool mutations: importing a tournament's
+    // results only ever writes tournaments/player_results, so it must not require
+    // unlocking wallet, role or status mutations either.
+    resultsImportEnabled: exactlyTrue(env.ADMIN_RESULTS_IMPORT_ENABLED),
     anonymizationEnabled: mutationsEnabled && exactlyTrue(env.ADMIN_ANONYMIZATION_ENABLED),
     mfaEnforcementEnabled: env.NODE_ENV === 'production' || env.ADMIN_MFA_ENFORCEMENT_ENABLED !== 'false',
     serverKeyConfigured,

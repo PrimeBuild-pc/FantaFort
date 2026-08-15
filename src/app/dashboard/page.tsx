@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import PlayerCard from '@/components/PlayerCard';
+import PlayerCompare from '@/components/PlayerCompare';
 import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
 import { MARKET_PAGE_SIZE, searchKnownAccounts, searchMarketPlayers, type KnownAccount } from '@/lib/market-players';
@@ -21,6 +22,12 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [missing, setMissing] = useState<KnownAccount[]>([]);
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareSelection, setCompareSelection] = useState<Player[]>([]);
+  const toggleCompare = (player: Player) => setCompareSelection(current => {
+    if (current.some(item => item.id === player.id)) return current.filter(item => item.id !== player.id);
+    return current.length >= 2 ? [current[1], player] : [...current, player];
+  });
 
   // Debounced so typing does not fire a query per keystroke.
   useEffect(() => {
@@ -65,11 +72,15 @@ export default function DashboardPage() {
       </section>
       <div className="market-toolbar">
         <label className="search-box"><span>⌕</span><input value={query} aria-label={t('searchPlayers')} maxLength={80} onChange={event => { setQuery(event.target.value); setPage(1); }} placeholder={t('searchPlayers')} /></label>
+        <button type="button" className={`compare-toggle${compareMode ? ' on' : ''}`} aria-pressed={compareMode} onClick={() => { setCompareMode(value => !value); setCompareSelection([]); }}>{t('compare')}</button>
         <span aria-live="polite">{total} PROS · {t('page')} {currentPage}/{totalPages}</span>
       </div>
+      {compareMode && <p className="form-hint">{t('compareHint')}</p>}
       {loading ? <div className="player-grid" aria-busy="true" aria-label={t('loading')}>{Array.from({ length: 12 }, (_, index) => <div className="player-card-skeleton" key={index} />)}</div>
         : failed ? <p className="notice error" role="alert">{t('noPlayers')}</p>
-        : visible.length ? <><div className="player-grid">{visible.map(player => <PlayerCard key={player.id} player={player} />)}</div><nav className="market-pagination" aria-label={t('marketPages')}><button disabled={currentPage === 1} onClick={() => changePage(currentPage - 1)}>‹ <span>{t('previousPage')}</span></button>{pageButtons.map(number => <button className={number === currentPage ? 'active' : ''} aria-current={number === currentPage ? 'page' : undefined} onClick={() => changePage(number)} key={number}>{number}</button>)}<button disabled={currentPage === totalPages} onClick={() => changePage(currentPage + 1)}><span>{t('nextPage')}</span> ›</button></nav></> : <><p className="notice">{t('noPlayers')}</p>
+        : visible.length ? <><div className="player-grid">{visible.map(player => <PlayerCard key={player.id} player={player} compareMode={compareMode} compareSelected={compareSelection.some(item => item.id === player.id)} onToggleCompare={toggleCompare} />)}</div>
+          {compareMode && <PlayerCompare players={compareSelection} />}
+          <nav className="market-pagination" aria-label={t('marketPages')}><button disabled={currentPage === 1} onClick={() => changePage(currentPage - 1)}>‹ <span>{t('previousPage')}</span></button>{pageButtons.map(number => <button className={number === currentPage ? 'active' : ''} aria-current={number === currentPage ? 'page' : undefined} onClick={() => changePage(number)} key={number}>{number}</button>)}<button disabled={currentPage === totalPages} onClick={() => changePage(currentPage + 1)}><span>{t('nextPage')}</span> ›</button></nav></> : <><p className="notice">{t('noPlayers')}</p>
           {missing.length > 0 && <section className="epic-panel missing-players">
             <div className="section-heading"><h2>Seen competing, not in the market</h2><span>{missing.length}</span></div>
             <p>These accounts appear in tournaments we track but are not carried yet. Statistics are only what we already recorded — nothing here is estimated.</p>
