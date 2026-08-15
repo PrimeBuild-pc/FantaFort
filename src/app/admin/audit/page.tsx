@@ -3,6 +3,7 @@
 
 import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import AdminNav from '@/components/AdminNav';
 import Header from '@/components/Header';
 import { adminFetch } from '@/lib/admin/client';
 
@@ -34,7 +35,7 @@ export default function AdminAuditPage() {
   const submit = (event:FormEvent) => { event.preventDefault(); setPage(0); setFilters(draft); };
   const field = (key:keyof Filters) => ({ value:draft[key], onChange:(event:ChangeEvent<HTMLInputElement|HTMLSelectElement>) => setDraft(value => ({ ...value, [key]:event.target.value })) });
 
-  return <div className="app-shell"><Header /><main className="container page-content">
+  return <div className="app-shell"><Header /><AdminNav /><main className="container page-content">
     <div className="page-title"><div className="eyebrow">ADMIN CONTROL CENTER</div><h1>Audit</h1><p>Append-only administrative activity. Identifiers and sensitive values are pseudonymized or redacted.</p></div>
     {message && <p className="notice error" role="alert">{message}</p>}
     <form className="epic-panel admin-user-filters" onSubmit={submit}>

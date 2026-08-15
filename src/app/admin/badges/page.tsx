@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import AdminNav from '@/components/AdminNav';
 import BadgeList from '@/components/BadgeList';
 import Header from '@/components/Header';
 import { adminFetch } from '@/lib/admin/client';
@@ -22,7 +23,7 @@ export default function AdminBadgesPage() {
     return response.json() as Promise<{definitions:Definition[];foundingCandidates:Candidate[];mutationsEnabled:boolean;badgeMutationsEnabled:boolean}>;
   }).then(result=>{setDefinitions(result.definitions);setCandidates(result.foundingCandidates);setMutationsEnabled(result.mutationsEnabled);setBadgeMutationsEnabled(result.badgeMutationsEnabled);}).catch(()=>setError('Badge administration unavailable'));},[]);
   const display=definitions.map(badge=>({slug:badge.slug,name:badge.name,description:badge.description,icon:badge.icon_token})) satisfies PublicBadge[];
-  return <div className="app-shell"><Header/><main className="container page-content">
+  return <div className="app-shell"><Header/><AdminNav /><main className="container page-content">
     <div className="page-title"><div className="eyebrow">ADMIN · ACHIEVEMENTS</div><h1>Badges</h1><p>Definitions and verified Founding 50 dry-run. Assignment happens on the account detail page.</p></div>
     {error&&<p className="notice error" role="alert">{error}</p>}
     <p className="notice">Badge mutations: <strong>{badgeMutationsEnabled?'enabled':'disabled (fail-closed)'}</strong> · General admin mutations: <strong>{mutationsEnabled?'enabled':'disabled (fail-closed)'}</strong>. The two capabilities are independent; badge assignment answers only to the first.</p>

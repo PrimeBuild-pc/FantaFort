@@ -47,7 +47,7 @@ export default function LineupDrawer({ locale, username, lineup, error, onClose 
       {lineup && (lineup.lineup.length
         ? <ul className="lineup-list">{lineup.lineup.map(player => <li key={player.playerId}>
             {player.photoUrl
-              ? <img src={player.photoUrl} alt="" loading="lazy" />
+              ? <img src={player.photoUrl} alt={player.handle} loading="lazy" />
               : <i className={`rarity-dot ${player.rarity}`} aria-hidden="true">{player.handle.slice(0,2).toUpperCase()}</i>}
             <span><strong>{player.handle}</strong><small>{player.team || player.realName || player.rarity}</small></span>
             <b>{number(player.currentPrice)} C</b>

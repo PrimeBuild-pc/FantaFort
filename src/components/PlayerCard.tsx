@@ -6,7 +6,15 @@ import { Player } from '@/lib/types';
 import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
 
-export default function PlayerCard({ player }: { player: Player }) {
+type Props = {
+  player: Player;
+  /** When set, renders a selection control for the comparison panel instead of only flipping on click. */
+  compareMode?: boolean;
+  compareSelected?: boolean;
+  onToggleCompare?: (player: Player) => void;
+};
+
+export default function PlayerCard({ player, compareMode, compareSelected, onToggleCompare }: Props) {
   const { team, coins, leagues, activeLeagueId, addToTeam, removeFromTeam } = useGame();
   const { locale, t } = useLocale();
   const [flipped, setFlipped] = useState(false);
@@ -42,13 +50,14 @@ export default function PlayerCard({ player }: { player: Player }) {
   ];
 
   return <article
-    className="player-card-shell" style={{ '--rarity': color } as React.CSSProperties}
+    className={`player-card-shell${compareSelected ? ' compare-selected' : ''}`} style={{ '--rarity': color } as React.CSSProperties}
     role="group" tabIndex={0} aria-label={`${player.handle} · ${flipped ? t('front') : t('details')}`}
     onClick={() => setFlipped(value => !value)} onKeyDown={keyboardFlip}
   >
     <div className={`player-flipper ${flipped ? 'is-flipped' : ''}`}>
       <section className="player-tile player-front" aria-hidden={flipped}>
         <div className="player-visual">
+          {compareMode && <button type="button" className="compare-check" aria-pressed={!!compareSelected} aria-label={`${t('compareSelect')} — ${player.handle}`} onClick={event => { event.stopPropagation(); onToggleCompare?.(player); }}>{compareSelected ? '✓' : ''}</button>}
           {player.photoUrl ? <img src={player.photoUrl} alt={player.handle} loading="lazy" /> : <div className="player-silhouette" aria-label={t('photoPending')}><span>{player.handle.slice(0, 2).toUpperCase()}</span></div>}
           <div className="price-tag"><b>{new Intl.NumberFormat(locale).format(player.price)}</b><small className={player.priceChange ? player.priceChange > 0 ? 'positive' : 'negative' : ''}>COINS {player.priceChange ? `${player.priceChange > 0 ? '▲' : '▼'} ${number(Math.abs(player.priceChange))}` : '•'}</small></div>
           <div className="rarity-label">{player.rarity}</div><div className="rarity-line" />

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAnonymizationEnabled, adminBadgeMutationsEnabled,
-  adminPlayerPoolMutationsEnabled, adminMfaEnforcementEnabled, adminMutationsEnabled, authorizeAdmin } from '@/lib/admin/server';
+  adminPlayerPoolMutationsEnabled, adminResultsImportEnabled, adminMfaEnforcementEnabled, adminMutationsEnabled, authorizeAdmin } from '@/lib/admin/server';
 
 export async function GET(request: NextRequest) {
   const admin = await authorizeAdmin(request, { allowAal1:true });
@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     mutationsEnabled: adminMutationsEnabled(),
     badgeMutationsEnabled: adminBadgeMutationsEnabled(),
     playerPoolMutationsEnabled: adminPlayerPoolMutationsEnabled(),
+    resultsImportEnabled: adminResultsImportEnabled(),
     mfaEnforcementEnabled: adminMfaEnforcementEnabled(),
     currentAal: admin.currentAal,
     nextAal,

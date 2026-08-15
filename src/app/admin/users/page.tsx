@@ -3,6 +3,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import AdminNav from '@/components/AdminNav';
 import Header from '@/components/Header';
 import { adminFetch, adminStepUp } from '@/lib/admin/client';
 
@@ -99,7 +100,7 @@ export default function AdminUsersPage() {
     setDirection(key === 'username' || key === 'account_status' || key === 'account_role' ? 'asc' : 'desc');
   };
 
-  return <div className="app-shell"><Header /><main className="container page-content">
+  return <div className="app-shell"><Header /><AdminNav /><main className="container page-content">
     <div className="page-title"><div className="eyebrow">ADMIN CONTROL CENTER</div><h1>Users</h1><p>Server-side account search, sorting and impact review.</p></div>
     {message && <p className="notice error" role="alert">{message}</p>}
     <form className="epic-panel admin-user-filters" onSubmit={submit}>

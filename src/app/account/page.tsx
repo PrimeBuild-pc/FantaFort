@@ -130,7 +130,7 @@ export default function AccountPage() {
         <div className="form-actions"><button className="epic-button">{t('save')}</button><button className="epic-button secondary" type="button" onClick={logout}>{t('logout')}</button></div>
       </form></section>
 
-      <section className="epic-panel wallet-panel"><div className="eyebrow">{t('balance')}</div><h2>{formattedBalance}</h2><p className="sandbox-label">SANDBOX</p><div className="wallet-packages">{[499,999,1999].map(amount => <button key={amount} onClick={() => run(() => mockTopUp(amount))}>+ €{(amount / 100).toFixed(2)}</button>)}</div><p>{t('sandboxNotice')}</p></section>
+      <section className="epic-panel wallet-panel"><div className="eyebrow">{t('balance')}</div><h2>{formattedBalance}</h2><p className="sandbox-label">SANDBOX</p><p className="form-hint">{t('topUp')}</p><div className="wallet-packages">{[499,999,1999].map(amount => <button key={amount} onClick={() => run(() => mockTopUp(amount))} aria-label={`${t('topUp')} +€${(amount / 100).toFixed(2)}`}>+ €{(amount / 100).toFixed(2)}</button>)}</div><p>{t('sandboxNotice')}</p><p className="form-hint"><Link href="/wallet">{t('wallet')} ({t('accountCoins')}) →</Link></p></section>
       <section className="epic-panel rewards-panel"><div className="eyebrow">{t('rewards')}</div><h2>{profile?.rewardPoints || 0} FP</h2><p>{t('cosmeticHelp')}</p><div className="cosmetic-list">{styles.map(style => <button className={`name-${style.id}`} key={style.id} onClick={() => run(() => buyNameStyle(style.id))}>{style.id.toUpperCase()} · {style.cost} FP</button>)}</div></section>
     </div>
 
