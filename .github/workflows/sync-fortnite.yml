@@ -36,8 +36,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          for attempt in 1 2; do
+          for attempt in 1 2 3; do
             npm run sync:results && exit 0
-            if [[ "$attempt" -lt 2 ]]; then sleep 30; fi
+            if [[ "$attempt" -lt 3 ]]; then sleep 60; fi
           done
           exit 1
