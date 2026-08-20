@@ -49,8 +49,8 @@ jobs:
             npm run sync:players -- --dry-run
             exit 0
           fi
-          for attempt in 1 2; do
+          for attempt in 1 2 3; do
             npm run sync:players && exit 0
-            if [ "$attempt" -lt 2 ]; then sleep 30; fi
+            if [ "$attempt" -lt 3 ]; then sleep 60; fi
           done
           exit 1
