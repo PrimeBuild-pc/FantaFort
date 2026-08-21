@@ -18,6 +18,9 @@ assert.match(authPage, /redirectTo:`\$\{window\.location\.origin\}\/auth\?reset=
 assert.match(authPage, /captchaToken:consumeCaptcha\(\)/);
 assert.match(authPage, /signInWithPassword\(\{ email, password, options:\{ captchaToken:token \} \}\)/);
 assert.match(authPage, /NEXT_PUBLIC_TURNSTILE_SITE_KEY/);
+const providers = await readFile('src/app/providers.tsx', 'utf8');
+assert.match(providers, /router\.replace\(userId \? '\/dashboard' : '\/auth'\)/);
+assert.match(providers, /pathname === '\/'/);
 const turnstile = await readFile('src/components/Turnstile.tsx', 'utf8');
 assert.match(turnstile, /challenges\.cloudflare\.com\/turnstile/);
 assert.match(turnstile, /'expired-callback'/);

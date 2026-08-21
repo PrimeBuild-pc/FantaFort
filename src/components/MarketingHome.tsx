@@ -27,7 +27,13 @@ export default function MarketingHome({ locale }: { locale: Locale }) {
           <small className="signup-note">{text.signupNote}</small>
           <Link className="hero-learn-link" href={marketingPath(locale,'/how-it-works')}>{text.learn} →</Link>
         </div>
+        <div className="marketing-hero-stage" aria-hidden="true">
+          <div className="stage-hud"><span><i/> FNCS LIVE</span><b>FANTAFORT · 03</b></div>
+          <div className="stage-cards"><div><span>01</span><i/><em>+42</em></div><div><span>02</span><i/><em>+68</em></div><div><span>03</span><i/><em>+31</em></div></div>
+          <div className="stage-score"><small>ROUND SCORE</small><strong>141</strong><span>PTS</span></div>
+        </div>
       </section>
+      <div className="landing-ticker" aria-hidden="true"><div>{[...text.benefits,...text.benefits].map((item,index)=><span key={`${item}-${index}`}>{item}<i>✦</i></span>)}</div></div>
 
       <section className="marketing-section landing-steps">
         <div className="section-intro"><p className="eyebrow">FANTAFORT · 01</p><h2>{text.worksTitle}</h2></div>

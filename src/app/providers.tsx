@@ -15,6 +15,17 @@ import OnboardingGuide from "@/components/OnboardingGuide";
 const publicRoutes = new Set(["/", "/auth", "/about", "/cookies", "/how-it-works", "/leaderboard", "/methodology"]);
 const publicPrefix = /^\/(?:it|es|de|fr)(?:\/|$)|^\/(?:guides|players)(?:\/|$)/;
 
+function HomeGate() {
+    const { loading, userId } = useGame();
+    const router = useRouter();
+
+    useEffect(() => {
+        if (!loading) router.replace(userId ? '/dashboard' : '/auth');
+    }, [loading, router, userId]);
+
+    return <main className="route-loading" aria-busy="true" aria-label="Loading"><span className="logo"><span>FANTA</span>FORT</span></main>;
+}
+
 function LanguageSwitcher() {
     const { locale, setLocale, t } = useLocale();
     return <label className="global-language"><span>{t('language')}</span><select aria-label={t('language')} value={locale} onChange={event => setLocale(event.target.value as Locale)}>{locales.map(item => <option key={item} value={item}>{item.toUpperCase()}</option>)}</select></label>;
@@ -58,6 +69,7 @@ function LevelUpNotice() {
 
 function RouteShell({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
+    if (pathname === '/') return <HomeGate />;
     const publicRoute = publicRoutes.has(pathname) || publicPrefix.test(pathname);
     if (publicRoute) return children;
     return <><LanguageSwitcher /><AuthGuard>{children}<BetaCommunityNotice /><OnboardingGuide /><LevelUpNotice /><CookieNotice /><LegalFooter /></AuthGuard></>;
