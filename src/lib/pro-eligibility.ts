@@ -27,7 +27,7 @@ export function isCompetitiveEvent(eventId: string): boolean {
   const id = eventId.toLowerCase();
   if (EXCLUDED_MODES.test(id)) return false;
   if (/division[45]/.test(id)) return false;
-  return /fncs|victorycup|cashcup/.test(id);
+  return /fncs|victorycup|cashcup|escargo_official/.test(id);
 }
 
 /** Events shown on the public tournaments page. */
@@ -148,6 +148,9 @@ export function classifyEntry({ eventId, region, rank, flagToken }: {
   const fncs = /fncs/.test(id);
   const home = isHomeFlag(flagToken);
 
+  if (/escargo_official/.test(id)) {
+    return rank <= 40 ? { tier: 'elite', reason: `EWC 2026 participant · rank ${rank}` } : null;
+  }
   if (fncs && (division === 1 || isMajor(id)) && rank <= 200) {
     return { tier: 'elite', reason: `FNCS ${division === 1 ? 'Division 1' : 'main event'} top ${rank} · ${region}` };
   }
