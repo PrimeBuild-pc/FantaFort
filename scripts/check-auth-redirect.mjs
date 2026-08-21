@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { isEmailSendRateLimit, safeRedirectPath } from '../src/lib/auth.ts';
+import { isDisposableEmailError, isEmailSendRateLimit, isExistingSignup, safeRedirectPath } from '../src/lib/auth.ts';
 
 const origin = 'https://fantafort.com';
 assert.equal(safeRedirectPath('/dashboard?tab=team#roster', origin), '/dashboard?tab=team#roster');
@@ -11,12 +11,18 @@ assert.equal(safeRedirectPath(null, origin), '/dashboard');
 assert.equal(isEmailSendRateLimit({ status: 429 }), true);
 assert.equal(isEmailSendRateLimit({ code: 'over_email_send_rate_limit' }), true);
 assert.equal(isEmailSendRateLimit({ status: 400, code: 'invalid_credentials' }), false);
+assert.equal(isDisposableEmailError({ code: 'disposable_email' }), true);
+assert.equal(isDisposableEmailError({ message: 'Disposable email addresses are not allowed.' }), true);
+assert.equal(isExistingSignup({ identities:[] }), true);
+assert.equal(isExistingSignup({ identities:[{}] }), false);
 const authPage = await readFile('src/app/auth/page.tsx', 'utf8');
 assert.match(authPage, /emailRedirectTo:`\$\{window\.location\.origin\}\/auth`/);
 assert.match(authPage, /params\.get\('mode'\) === 'signup'/);
 assert.match(authPage, /redirectTo:`\$\{window\.location\.origin\}\/auth\?reset=1`/);
 assert.match(authPage, /captchaToken:consumeCaptcha\(\)/);
 assert.match(authPage, /signInWithPassword\(\{ email, password, options:\{ captchaToken:token \} \}\)/);
+assert.match(authPage, /isExistingSignup\(result\.data\.user\)/);
+assert.match(authPage, /setRecoverAfterSignup\(true\)/);
 assert.match(authPage, /NEXT_PUBLIC_TURNSTILE_SITE_KEY/);
 const providers = await readFile('src/app/providers.tsx', 'utf8');
 assert.match(providers, /router\.replace\(userId \? '\/dashboard' : '\/auth'\)/);
