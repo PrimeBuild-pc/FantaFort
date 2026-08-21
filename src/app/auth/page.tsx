@@ -4,7 +4,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { isEmailSendRateLimit, isStrongPassword, safeRedirectPath } from '@/lib/auth';
+import { isDisposableEmailError, isEmailSendRateLimit, isExistingSignup, isStrongPassword, safeRedirectPath } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/context/LocaleContext';
 import { Locale, locales } from '@/lib/i18n';
@@ -35,6 +35,8 @@ export default function AuthPage() {
   const [captchaVersion, setCaptchaVersion] = useState(0);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [legalAccepted, setLegalAccepted] = useState(false);
+  const [recoverAfterSignup, setRecoverAfterSignup] = useState(false);
+  const captchaEnabled = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
   useEffect(() => {
     if (!supabase) return;
@@ -49,6 +51,19 @@ export default function AuthPage() {
     const { data } = supabase.auth.onAuthStateChange(event => { if (event === 'PASSWORD_RECOVERY') setMode('reset'); });
     return () => data.subscription.unsubscribe();
   }, [router]);
+
+  useEffect(() => {
+    if (!recoverAfterSignup || (captchaEnabled && !captchaToken) || !supabase) return;
+    setRecoverAfterSignup(false); setPending(true);
+    const token = captchaToken || undefined;
+    setCaptchaToken(null); setCaptchaVersion(value => value + 1);
+    void supabase.auth.resetPasswordForEmail(email, {
+      redirectTo:`${window.location.origin}/auth?reset=1`, captchaToken:token,
+    }).then(({ error }) => {
+      setPending(false);
+      setMessage(isEmailSendRateLimit(error) ? t('emailRecentlySent') : error?.message || t('confirmEmail'));
+    });
+  }, [captchaEnabled, captchaToken, email, recoverAfterSignup, t]);
 
   const resetCaptcha = () => { setCaptchaToken(null); setCaptchaVersion(value => value + 1); };
   const changeMode = (nextMode:Mode) => { setMode(nextMode); setMessage(''); resetCaptcha(); };
@@ -85,8 +100,11 @@ export default function AuthPage() {
       ? await supabase.auth.signUp({ email, password, options: { captchaToken:token, emailRedirectTo:`${window.location.origin}/auth`, data: { username, locale, age_confirmed:true, legal_accepted_at:new Date().toISOString(), terms_version:LEGAL_VERSION, privacy_version:LEGAL_VERSION } } })
       : await supabase.auth.signInWithPassword({ email, password, options:{ captchaToken:token } });
     setPending(false);
-    if (result.error) return setMessage(mode === 'signup' && isEmailSendRateLimit(result.error) ? t('emailRecentlySent') : result.error.message);
-    if (mode === 'signup' && !result.data.session) return setMessage(t('confirmEmail'));
+    if (result.error) return setMessage(mode === 'signup' && isDisposableEmailError(result.error) ? t('disposableEmail') : mode === 'signup' && isEmailSendRateLimit(result.error) ? t('emailRecentlySent') : result.error.message);
+    if (mode === 'signup' && !result.data.session) {
+      if (isExistingSignup(result.data.user)) setRecoverAfterSignup(true);
+      return setMessage(t('confirmEmail'));
+    }
     router.replace(next);
   };
 
@@ -110,7 +128,7 @@ export default function AuthPage() {
         {mode === 'signup' && <div className="legal-consent"><label className="checkbox-label"><input type="checkbox" checked={ageConfirmed} onChange={event=>setAgeConfirmed(event.target.checked)} required />{legalCopy[locale].age}</label><label className="checkbox-label"><input type="checkbox" checked={legalAccepted} onChange={event=>setLegalAccepted(event.target.checked)} required /><span>{legalCopy[locale].agree} <Link href="/terms" target="_blank">Terms</Link> · <Link href="/privacy" target="_blank">Privacy</Link></span></label></div>}
         {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && mode !== 'reset' && <Turnstile key={captchaVersion} siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} onToken={setCaptchaToken} />}
         {message && <p className="notice" role="alert">{message}</p>}
-        <button className="epic-button" disabled={pending || Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && mode !== 'reset' && !captchaToken)}>{pending ? t('wait') : title}</button>
+        <button className="epic-button" disabled={pending || Boolean(captchaEnabled && mode !== 'reset' && !captchaToken)}>{pending ? t('wait') : title}</button>
         {mode === 'signin' ? <button className="link-button" type="button" onClick={() => changeMode('forgot')}>{t('forgotPassword')}</button> : mode !== 'signup' && <button className="link-button" type="button" onClick={() => changeMode('signin')}>{t('backToLogin')}</button>}
       </form>
       <small className="auth-disclaimer">{marketing.fairBody}</small>
