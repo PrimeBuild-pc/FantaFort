@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="52" viewBox="0 0 760 52" role="img" aria-labelledby="title desc">
+  <title id="title">Alpha with live tournament data</title><desc id="desc">FantaFort alpha status indicator</desc><defs><linearGradient id="g" x2="1"><stop stop-color="#22d3ee"/><stop offset="1" stop-color="#d946ef"/></linearGradient><filter id="s"><feGaussianBlur stdDeviation="4"/></filter></defs>
+  <rect x="1" y="1" width="758" height="50" rx="25" fill="#080d24" stroke="#26355f"/><circle class="pulse" cx="34" cy="26" r="8" fill="#22d3ee"/><circle class="glow" cx="34" cy="26" r="13" fill="#22d3ee" opacity=".3" filter="url(#s)"/><text x="58" y="33" fill="url(#g)" font-family="Segoe UI,Arial,sans-serif" font-size="20" font-weight="700" letter-spacing="1.5">ALPHA · LIVE TOURNAMENT DATA · BUILD YOUR SQUAD</text>
+  <style>.pulse,.glow{transform-box:fill-box;transform-origin:center;animation:p 1.8s ease-in-out infinite}@keyframes p{50%{transform:scale(1.45);opacity:.45}}@media(prefers-reduced-motion:reduce){.pulse,.glow{animation:none}}</style>
+</svg>

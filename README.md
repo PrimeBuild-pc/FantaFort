@@ -5,15 +5,26 @@
 
   <p><strong>An independent fantasy platform built around competitive Fortnite tournament results.</strong></p>
 
+  <img src="docs/assets/live-data.svg" alt="Alpha with live tournament data" width="760" />
+
   <p>
-    <a href="https://fantafort.com"><img alt="Website" src="https://img.shields.io/badge/website-fantafort.com-00d8ff?style=for-the-badge" /></a>
-    <img alt="Development status: Alpha" src="https://img.shields.io/badge/status-alpha-f59e0b?style=for-the-badge" />
-    <img alt="License: Proprietary" src="https://img.shields.io/badge/license-proprietary-8b5cf6?style=for-the-badge" />
+    <a href="https://github.com/PrimeBuild-pc/FantaFort/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/PrimeBuild-pc/FantaFort?style=plastic&amp;logo=git&amp;logoColor=white"></a>
+    <a href="https://github.com/PrimeBuild-pc/FantaFort/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/PrimeBuild-pc/FantaFort?style=plastic&amp;logo=github"></a>
+    <a href="https://github.com/PrimeBuild-pc/FantaFort/issues"><img alt="Open issues" src="https://img.shields.io/github/issues/PrimeBuild-pc/FantaFort?style=plastic&amp;logo=github"></a>
   </p>
   <p>
-    <a href="https://github.com/PrimeBuild-pc/FantaFort/actions/workflows/revival-ci.yml"><img alt="CI status" src="https://github.com/PrimeBuild-pc/FantaFort/actions/workflows/revival-ci.yml/badge.svg?branch=main" /></a>
-    <a href="https://github.com/PrimeBuild-pc/FantaFort/actions/workflows/codeql.yml"><img alt="CodeQL status" src="https://github.com/PrimeBuild-pc/FantaFort/actions/workflows/codeql.yml/badge.svg?branch=main" /></a>
-    <a href="SECURITY.md"><img alt="Security policy" src="https://img.shields.io/badge/security-policy-16a34a" /></a>
+    <a href="https://fantafort.com"><img alt="Website" src="https://img.shields.io/badge/website-fantafort.com-00d8ff?style=plastic"></a>
+    <a href="https://github.com/PrimeBuild-pc/FantaFort/actions/workflows/revival-ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/PrimeBuild-pc/FantaFort/revival-ci.yml?branch=main&amp;style=plastic&amp;logo=githubactions&amp;label=CI"></a>
+    <a href="https://github.com/PrimeBuild-pc/FantaFort/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://img.shields.io/github/actions/workflow/status/PrimeBuild-pc/FantaFort/codeql.yml?branch=main&amp;style=plastic&amp;logo=github&amp;label=CodeQL"></a>
+    <img alt="Alpha" src="https://img.shields.io/badge/status-alpha-f59e0b?style=plastic">
+    <img alt="Proprietary license" src="https://img.shields.io/badge/license-proprietary-8b5cf6?style=plastic">
+  </p>
+  <p>
+    <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-6-3178C6?style=plastic&amp;logo=typescript&amp;logoColor=white">
+    <img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-111111?style=plastic&amp;logo=nextdotjs&amp;logoColor=white">
+    <img alt="React" src="https://img.shields.io/badge/React-19-087EA4?style=plastic&amp;logo=react&amp;logoColor=white">
+    <img alt="Supabase" src="https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=plastic&amp;logo=supabase&amp;logoColor=white">
+    <a href="SECURITY.md"><img alt="Security policy" src="https://img.shields.io/badge/security-policy-2ea44f?style=plastic&amp;logo=github"></a>
   </p>
 </div>
 
