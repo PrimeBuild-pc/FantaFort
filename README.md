@@ -70,7 +70,6 @@ Abstract ideas and third-party materials are protected only to the extent provid
 
 ## Community
 
-- Official Discord: <https://discord.gg/V3m8pDe3wz> — beta feedback, bug reports, suggestions and game discussion.
 - Product/community email updates are opt-in only (`community_email_opt_in`, default off) and can be managed from Account settings. No campaign emails are sent in this release; a future campaign system would require a separate reviewed plan and provider.
 - Global net-worth leaderboard: account coins plus current portfolio market value. Only public data (nickname, rank, net worth, public badges) is shown; see `docs/PRODUCT_COMMUNITY_LEADERBOARD_PLAN.md`.
 
