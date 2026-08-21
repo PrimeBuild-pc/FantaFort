@@ -7,8 +7,9 @@ import Link from 'next/link';
 import { isEmailSendRateLimit, isStrongPassword, safeRedirectPath } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/context/LocaleContext';
-import { Locale } from '@/lib/i18n';
+import { Locale, locales } from '@/lib/i18n';
 import { LEGAL_VERSION } from '@/lib/legal';
+import { homeCopy } from '@/lib/marketing';
 import { Turnstile } from '@/components/Turnstile';
 
 type Mode = 'signin' | 'signup' | 'forgot' | 'reset';
@@ -22,7 +23,7 @@ const legalCopy:Record<Locale,{age:string;agree:string;required:string}>={
 
 export default function AuthPage() {
   const router = useRouter();
-  const { locale, t } = useLocale();
+  const { locale, setLocale, t } = useLocale();
   const [mode, setMode] = useState<Mode>('signin');
   const [next, setNext] = useState('/dashboard');
   const [username, setUsername] = useState('');
@@ -92,17 +93,27 @@ export default function AuthPage() {
   if (!supabase) return <main className="auth-shell"><section className="epic-panel auth-card"><h1>Service unavailable</h1><p>Authentication is not configured.</p><Link href="/about">FantaFort information</Link></section></main>;
 
   const title = mode === 'signup' ? t('signUp') : mode === 'forgot' ? t('forgotPassword') : mode === 'reset' ? t('newPassword') : t('signIn');
+  const marketing = homeCopy[locale];
   return <main className="auth-shell">
-    <form className="epic-panel auth-card" onSubmit={submit}>
-      <div className="eyebrow">FANTAFORT ACCOUNT</div><h1>{title}</h1>
-      {mode === 'signup' && <label>{t('username')}<input value={username} onChange={event => setUsername(event.target.value)} required minLength={3} maxLength={30} autoComplete="username" /></label>}
-      {mode !== 'reset' && <label>{t('email')}<input type="email" value={email} onChange={event => setEmail(event.target.value)} required maxLength={254} autoComplete="email" /></label>}
-      {mode !== 'forgot' && <label>{mode === 'reset' ? t('newPassword') : t('password')}<input type="password" value={password} onChange={event => setPassword(event.target.value)} required minLength={mode === 'signin' ? 8 : 10} maxLength={128} autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} />{mode !== 'signin' && <small>{t('passwordRules')}</small>}</label>}
-      {mode === 'signup' && <div className="legal-consent"><label className="checkbox-label"><input type="checkbox" checked={ageConfirmed} onChange={event=>setAgeConfirmed(event.target.checked)} required />{legalCopy[locale].age}</label><label className="checkbox-label"><input type="checkbox" checked={legalAccepted} onChange={event=>setLegalAccepted(event.target.checked)} required /><span>{legalCopy[locale].agree} <Link href="/terms" target="_blank">Terms</Link> · <Link href="/privacy" target="_blank">Privacy</Link></span></label></div>}
-      {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && mode !== 'reset' && <Turnstile key={captchaVersion} siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} onToken={setCaptchaToken} />}
-      {message && <p className="notice" role="alert">{message}</p>}
-      <button className="epic-button" disabled={pending || Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && mode !== 'reset' && !captchaToken)}>{pending ? t('wait') : title}</button>
-      {mode === 'signin' ? <><button className="link-button" type="button" onClick={() => changeMode('forgot')}>{t('forgotPassword')}</button><button className="link-button" type="button" onClick={() => changeMode('signup')}>{t('needAccount')}</button></> : <button className="link-button" type="button" onClick={() => changeMode('signin')}>{t('backToLogin')}</button>}
-    </form>
+    <section className="auth-showcase">
+      <header><span className="logo"><span>FANTA</span>FORT</span><label className="auth-language"><span>{t('language')}</span><select value={locale} onChange={event => setLocale(event.target.value as Locale)}>{locales.map(item => <option key={item} value={item}>{item.toUpperCase()}</option>)}</select></label></header>
+      <div className="auth-pitch"><p className="eyebrow">{marketing.eyebrow}</p><h1>{marketing.title}<br/><em>{marketing.accent}</em></h1><p>{marketing.intro}</p><ul>{marketing.benefits.map(item=><li key={item}><i>✓</i>{item}</li>)}</ul></div>
+      <div className="auth-arena" aria-hidden="true"><span className="auth-live"><i/> FNCS LIVE</span><div className="auth-player one"><b>01</b><span>+42</span></div><div className="auth-player two"><b>02</b><span>+68</span></div><div className="auth-player three"><b>03</b><span>+31</span></div><strong>141 <small>PTS</small></strong></div>
+    </section>
+    <section className="auth-form-column">
+      <form className="epic-panel auth-card" onSubmit={submit}>
+        <div className="eyebrow">FANTAFORT ACCOUNT</div><h2>{title}</h2>
+        {(mode === 'signin' || mode === 'signup') && <div className="auth-mode-tabs"><button type="button" aria-pressed={mode === 'signin'} onClick={() => changeMode('signin')}>{t('signIn')}</button><button type="button" aria-pressed={mode === 'signup'} onClick={() => changeMode('signup')}>{t('signUp')}</button></div>}
+        {mode === 'signup' && <label>{t('username')}<input value={username} onChange={event => setUsername(event.target.value)} required minLength={3} maxLength={30} autoComplete="username" /></label>}
+        {mode !== 'reset' && <label>{t('email')}<input type="email" value={email} onChange={event => setEmail(event.target.value)} required maxLength={254} autoComplete="email" /></label>}
+        {mode !== 'forgot' && <label>{mode === 'reset' ? t('newPassword') : t('password')}<input type="password" value={password} onChange={event => setPassword(event.target.value)} required minLength={mode === 'signin' ? 8 : 10} maxLength={128} autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} />{mode !== 'signin' && <small>{t('passwordRules')}</small>}</label>}
+        {mode === 'signup' && <div className="legal-consent"><label className="checkbox-label"><input type="checkbox" checked={ageConfirmed} onChange={event=>setAgeConfirmed(event.target.checked)} required />{legalCopy[locale].age}</label><label className="checkbox-label"><input type="checkbox" checked={legalAccepted} onChange={event=>setLegalAccepted(event.target.checked)} required /><span>{legalCopy[locale].agree} <Link href="/terms" target="_blank">Terms</Link> · <Link href="/privacy" target="_blank">Privacy</Link></span></label></div>}
+        {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && mode !== 'reset' && <Turnstile key={captchaVersion} siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} onToken={setCaptchaToken} />}
+        {message && <p className="notice" role="alert">{message}</p>}
+        <button className="epic-button" disabled={pending || Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && mode !== 'reset' && !captchaToken)}>{pending ? t('wait') : title}</button>
+        {mode === 'signin' ? <button className="link-button" type="button" onClick={() => changeMode('forgot')}>{t('forgotPassword')}</button> : mode !== 'signup' && <button className="link-button" type="button" onClick={() => changeMode('signin')}>{t('backToLogin')}</button>}
+      </form>
+      <small className="auth-disclaimer">{marketing.fairBody}</small>
+    </section>
   </main>;
 }
