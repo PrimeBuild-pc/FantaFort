@@ -75,6 +75,10 @@ for (const eventId of ['epicgames_S40_MobileSeriesApr_EU', 'epicgames_S40_BakMob
   assert.equal(isDisplayEvent(eventId), false, `${eventId} must not be listed`);
 }
 assert.equal(isCompetitiveEvent('epicgames_S41_RankedCup_EU'), false, 'ranked is not competitive play');
+assert.equal(isCompetitiveEvent('epicgames_Escargo_Official'), true, 'EWC 2026 must sync');
+assert.equal(classifyEntry({ eventId:'epicgames_Escargo_Official', region:'EU', rank:40 })?.tier, 'elite');
+assert.equal(classifyEntry({ eventId:'epicgames_Escargo_Official', region:'EU', rank:41 }), null,
+  'only the 40 qualified EWC duos enter the pool');
 
 // --- Tiers -------------------------------------------------------------------
 const at = (eventId, rank, flagToken) => classifyEntry({ eventId, region: 'EU', rank, flagToken })?.tier ?? null;
