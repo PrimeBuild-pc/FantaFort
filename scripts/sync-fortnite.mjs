@@ -10,9 +10,18 @@ const supabase = createClient(url, serviceKey, { auth: { persistSession: false }
 const now = Date.now();
 const cutoff = now - 14 * 24 * 60 * 60 * 1000;
 const future = now + 21 * 24 * 60 * 60 * 1000;
-const { data: players, error: playersError } = await supabase.from('players').select('id, account_id').eq('active', true).not('account_id', 'is', null);
-if (playersError) throw playersError;
-if (players.length > 10_000) throw new Error('Active player set exceeds record limit');
+const players = [];
+for (let from = 0; ; from += 1000) {
+  // PostgREST caps a response well below the size of the pool, so an unpaginated read
+  // silently saw a fraction of the eligible accounts and dropped every leaderboard entry
+  // belonging to the rest. sync-player-pool.mjs already pages for the same reason.
+  const { data, error: playersError } = await supabase.from('players').select('id, account_id').eq('active', true).not('account_id', 'is', null).range(from, from + 999);
+  if (playersError) throw playersError;
+  players.push(...data);
+  if (data.length < 1000) break;
+}
+if (players.length > 25_000) throw new Error('Active player set exceeds record limit');
+console.log(`Mapping ${players.length} eligible accounts.`);
 
 const playerByAccount = new Map(players.map(player => [player.account_id, player.id]));
 const tournamentRows = new Map();
@@ -150,16 +159,20 @@ async function upsert(table, rows) {
 }
 
 // All provider responses are bounded and validated before the first write. Upserts are idempotent if a DB call fails mid-run.
-await upsert('tournaments', tournamentRows);
-await upsert('tournament_teams', teams);
-await upsert('tournament_team_members', members);
-await upsert('tournament_sessions', sessions);
-await upsert('player_results', results);
+// Each phase announces itself: a bare Postgres error in the workflow log otherwise names no step.
+for (const [table, rows] of [
+  ['tournaments', tournamentRows], ['tournament_teams', teams], ['tournament_team_members', members],
+  ['tournament_sessions', sessions], ['player_results', results],
+]) {
+  console.log(`Upserting ${rows.size} ${table} rows.`);
+  await upsert(table, rows);
+}
 for (const [windowId, largestTeam] of largestTeams) {
   if (largestTeam <= 1) continue;
   const { error } = await supabase.from('tournaments').update({ format:formatFromSize(largestTeam) }).eq('window_id', windowId).eq('format', 'unknown');
   if (error) throw error;
 }
+console.log('Repricing the market.');
 const { data: repriced, error:priceError } = await supabase.rpc('refresh_market_prices');
 if (priceError) throw priceError;
 console.log(`Synced ${results.size} player results and ${sessions.size} sessions; repriced ${repriced} players.`);
