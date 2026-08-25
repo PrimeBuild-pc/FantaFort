@@ -103,7 +103,7 @@ try {
   }
   const lineupKeys=['currentPrice','handle','photoUrl','playerId','rarity','realName','team'];
   if(JSON.stringify(Object.keys(visible.lineup[0]).sort())!==JSON.stringify(lineupKeys)) throw new Error('Public lineup returned unexpected player fields');
-  if(JSON.stringify(Object.keys(visible).sort())!==JSON.stringify(['badges','lineup','nameStyle','netWorth','rank','username'])) throw new Error('Public lineup returned unexpected fields');
+  if(JSON.stringify(Object.keys(visible).sort())!==JSON.stringify(['avatarStyle','badges','lineup','nameStyle','netWorth','rank','username'])) throw new Error('Public lineup returned unexpected fields');
 
   // A lineup with no players is a clean empty state, not an error.
   const emptyOwner=users[1];
