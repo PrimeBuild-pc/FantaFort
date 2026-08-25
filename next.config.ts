@@ -19,7 +19,7 @@ const nextConfig: NextConfig = {
     permanent: true,
   })),
   headers: async () => [
-    ...['auth', 'dashboard/:path*', 'trading', 'wallet', 'leagues/:path*', 'leaderboard', 'friends', 'notifications', 'account', 'admin', 'tournaments', 'api/:path*'].map(source => ({
+    ...['auth', 'dashboard/:path*', 'shop', 'trading', 'wallet', 'leagues/:path*', 'leaderboard', 'friends', 'notifications', 'account', 'admin', 'tournaments', 'api/:path*'].map(source => ({
       source: `/${source}`,
       headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
     })),

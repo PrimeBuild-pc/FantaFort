@@ -32,8 +32,8 @@ interface GameState {
   saveProfile: (username: string, locale: string) => Promise<string | null>;
   saveCommunicationPreference: (enabled: boolean) => Promise<string | null>;
   savePublicLineupVisibility: (enabled: boolean) => Promise<string | null>;
-  mockTopUp: (amount: number) => Promise<string | null>;
-  buyNameStyle: (style: string) => Promise<string | null>;
+  buyCosmetic: (slug: string) => Promise<string | null>;
+  equipCosmetic: (kind: string, slug: string) => Promise<string | null>;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -57,7 +57,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const loadCloudGame = useCallback(async (id: string, preferredLeague?: string | null) => {
     if (!supabase) return;
     const [profileResult, membershipsResult, portfolioResult] = await Promise.all([
-      supabase.from('profiles').select('username,locale,reward_points,experience_points,is_admin,wallet_cents,name_style,community_email_opt_in,community_email_opted_in_at,community_email_opted_out_at,public_lineup_enabled').eq('id', id).single(),
+      supabase.from('profiles').select('username,locale,reward_points,experience_points,is_admin,name_style,avatar_style,community_email_opt_in,community_email_opted_in_at,community_email_opted_out_at,public_lineup_enabled').eq('id', id).single(),
       supabase.from('league_members').select('league_id,coins,reserved_coins').eq('user_id', id),
       supabase.rpc('get_account_portfolio'),
     ]);
@@ -104,7 +104,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const nextProfile: Profile = {
       username: profileResult.data.username, locale: profileResult.data.locale,
       rewardPoints: profileResult.data.reward_points, experiencePoints: profileResult.data.experience_points,
-      isAdmin: profileResult.data.is_admin, walletCents: profileResult.data.wallet_cents, nameStyle: profileResult.data.name_style,
+      isAdmin: profileResult.data.is_admin, nameStyle: profileResult.data.name_style, avatarStyle: profileResult.data.avatar_style,
       communityEmailOptIn:profileResult.data.community_email_opt_in,
       communityEmailOptedInAt:profileResult.data.community_email_opted_in_at,
       communityEmailOptedOutAt:profileResult.data.community_email_opted_out_at,
@@ -231,8 +231,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       enabled, consent_version:COMMUNICATION_CONSENT_VERSION, consent_source:'account_settings',
     }),
     savePublicLineupVisibility: enabled => rpcAndRefresh('set_public_lineup_visibility', { enabled }),
-    mockTopUp: amount => rpcAndRefresh('mock_top_up', { amount_cents: amount, request_id:crypto.randomUUID() }),
-    buyNameStyle: style => rpcAndRefresh('buy_name_style', { style }),
+    buyCosmetic: slug => rpcAndRefresh('buy_cosmetic', { cosmetic_slug: slug, request_id:crypto.randomUUID() }),
+    equipCosmetic: (kind, slug) => rpcAndRefresh('equip_cosmetic', { cosmetic_kind: kind, cosmetic_slug: slug }),
     refresh, signOut,
   }}>{children}</GameContext.Provider>;
 }

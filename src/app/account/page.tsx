@@ -1,10 +1,11 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import BadgeList from '@/components/BadgeList';
+import Emblem from '@/components/Emblem';
 import Header from '@/components/Header';
 import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
@@ -16,10 +17,16 @@ import { supabase } from '@/lib/supabase';
 import { getLevelProgress, type PublicBadge } from '@/lib/types';
 import { PRIVACY_EMAIL } from '@/lib/legal';
 
-const styles = [{ id:'storm', cost:100 }, { id:'victory', cost:250 }, { id:'legendary', cost:500 }];
 type XpEvent = { id:number; type:'league_completed'|'league_won'; amount:number; created_at:string; leagues:{name:string}|null };
 type Departure = { id:number; league_id:string|null; league_name:string; left_at:string };
 type GlobalSummary = { rank:number; username:string; net_worth:number; badges:PublicBadge[] };
+const lockerCopy:Record<Locale,{title:string;help:string;action:string}>={
+  en:{title:'Your look',help:'Emblem and nickname style are bought with in-game coins and are what other managers see next to you in the global leaderboard.',action:'Open the cosmetic shop'},
+  it:{title:'Il tuo aspetto',help:'Emblema e stile del nickname si acquistano con le monete di gioco e sono ciò che gli altri manager vedono accanto a te nella classifica globale.',action:'Apri il negozio cosmetici'},
+  es:{title:'Tu aspecto',help:'El emblema y el estilo del nombre se compran con monedas del juego y son lo que otros managers ven junto a ti en la clasificación global.',action:'Abrir la tienda de cosméticos'},
+  de:{title:'Dein Look',help:'Emblem und Namensstil werden mit Spielmünzen gekauft und sind das, was andere Manager in der globalen Rangliste neben dir sehen.',action:'Kosmetik-Shop öffnen'},
+  fr:{title:'Votre apparence',help:'L’emblème et le style de pseudo s’achètent avec des pièces de jeu et sont ce que les autres managers voient à côté de vous au classement mondial.',action:'Ouvrir la boutique de cosmétiques'},
+};
 const exportCopy:Record<Locale,{title:string;help:string;action:string;working:string;done:string}>={
   en:{title:'Download your data',help:'A JSON copy of the personal data held about your account, in a portable format (GDPR arts. 15 and 20). Competitive player and tournament records are not included: they are not personal data about you.',action:'Download my data',working:'Preparing your export…',done:'Export downloaded.'},
   it:{title:'Scarica i tuoi dati',help:'Una copia JSON dei dati personali relativi al tuo account, in formato portabile (artt. 15 e 20 GDPR). I dati di giocatori e tornei non sono inclusi: non sono dati personali che ti riguardano.',action:'Scarica i miei dati',working:'Preparazione dell’export…',done:'Export scaricato.'},
@@ -37,7 +44,7 @@ const deletionCopy:Record<Locale,{title:string;help:string;action:string;confirm
 
 export default function AccountPage() {
   const router = useRouter();
-  const { profile, userEmail, team, leagues, saveProfile, saveCommunicationPreference, savePublicLineupVisibility, mockTopUp, buyNameStyle, signOut } = useGame();
+  const { profile, userEmail, team, leagues, accountPortfolio, saveProfile, saveCommunicationPreference, savePublicLineupVisibility, signOut } = useGame();
   const { locale, setLocale, t } = useLocale();
   const [username, setUsername] = useState(profile?.username || '');
   const [selectedLocale, setSelectedLocale] = useState<Locale>(profile?.locale || locale);
@@ -77,7 +84,6 @@ export default function AccountPage() {
   }, [team]);
 
   const max = Math.max(1, ...history.map(item => item.points));
-  const run = async (action:() => Promise<string|null>) => { const error = await action(); setMessage(error || '✓'); };
   const logout = async () => { await signOut(); router.replace('/auth'); router.refresh(); };
   const submit = async (event:FormEvent) => { event.preventDefault(); const error = await saveProfile(username, selectedLocale); setMessage(error || '✓'); if (!error) setLocale(selectedLocale); };
   const saveEmailPreference = async () => {
@@ -115,7 +121,6 @@ export default function AccountPage() {
     if (error) return setMessage(error.message);
     await logout();
   };
-  const formattedBalance = useMemo(() => ((profile?.walletCents || 0) / 100).toLocaleString(locale, { style:'currency', currency:'EUR' }), [locale, profile?.walletCents]);
   const level = getLevelProgress(profile?.experiencePoints || 0);
   const closedLeagues = leagues.filter(league => league.status === 'completed' || league.status === 'cancelled');
 
@@ -123,15 +128,15 @@ export default function AccountPage() {
     <div className="page-title"><div className="eyebrow">PLAYER PROFILE</div><h1>{t('settings')}</h1></div>
     {message && <p className="notice" role="status">{message}</p>}
     <div className="account-grid">
-      <section className="epic-panel profile-panel"><div className="profile-panel-heading"><div className="eyebrow">PROFILE</div><h2>{t('account')}</h2></div><div className="profile-identity"><div className={`profile-emblem name-${profile?.nameStyle || 'default'}`}>{(profile?.username || 'P').slice(0,2).toUpperCase()}</div><div className="level-summary"><b>{t('level')} {level.level}</b><strong>{t(`badge_${level.badge}` as Parameters<typeof t>[0])}</strong><span>{level.current} / {level.required} XP</span><i role="progressbar" aria-label={`${t('level')} ${level.level}`} aria-valuemin={0} aria-valuemax={level.required} aria-valuenow={level.current}><em style={{ width:`${level.current / level.required * 100}%` }} /></i></div>{globalSummary&&<div className="profile-global-summary"><span>{t('position')} <b>#{globalSummary.rank}</b></span><span>{t('totalEquity')} <b>{new Intl.NumberFormat(locale).format(globalSummary.net_worth)} C</b></span><BadgeList badges={globalSummary.badges}/></div>}</div><form onSubmit={submit}>
+      <section className="epic-panel profile-panel"><div className="profile-panel-heading"><div className="eyebrow">PROFILE</div><h2>{t('account')}</h2></div><div className="profile-identity"><Emblem username={profile?.username || 'P'} style={profile?.avatarStyle} className="profile-emblem" /><div className="level-summary"><b>{t('level')} {level.level}</b><strong>{t(`badge_${level.badge}` as Parameters<typeof t>[0])}</strong><span>{level.current} / {level.required} XP</span><i role="progressbar" aria-label={`${t('level')} ${level.level}`} aria-valuemin={0} aria-valuemax={level.required} aria-valuenow={level.current}><em style={{ width:`${level.current / level.required * 100}%` }} /></i></div>{globalSummary&&<div className="profile-global-summary"><span>{t('position')} <b>#{globalSummary.rank}</b></span><span>{t('totalEquity')} <b>{new Intl.NumberFormat(locale).format(globalSummary.net_worth)} C</b></span><span>{t('fantapoints')} <b>{profile?.rewardPoints || 0} FP</b></span><BadgeList badges={globalSummary.badges}/></div>}</div><form onSubmit={submit}>
         <label>{t('username')}<input value={username} onChange={event => setUsername(event.target.value)} required minLength={3} maxLength={30} /></label>
         <label>{t('email')}<input value={userEmail || ''} disabled /></label>
         <label>{t('language')}<select value={selectedLocale} onChange={event => setSelectedLocale(event.target.value as Locale)}>{locales.map(item => <option value={item} key={item}>{item.toUpperCase()}</option>)}</select></label>
         <div className="form-actions"><button className="epic-button">{t('save')}</button><button className="epic-button secondary" type="button" onClick={logout}>{t('logout')}</button></div>
       </form></section>
 
-      <section className="epic-panel wallet-panel"><div className="eyebrow">{t('balance')}</div><h2>{formattedBalance}</h2><p className="sandbox-label">SANDBOX</p><p className="form-hint">{t('topUp')}</p><div className="wallet-packages">{[499,999,1999].map(amount => <button key={amount} onClick={() => run(() => mockTopUp(amount))} aria-label={`${t('topUp')} +€${(amount / 100).toFixed(2)}`}>+ €{(amount / 100).toFixed(2)}</button>)}</div><p>{t('sandboxNotice')}</p><p className="form-hint"><Link href="/wallet">{t('wallet')} ({t('accountCoins')}) →</Link></p></section>
-      <section className="epic-panel rewards-panel"><div className="eyebrow">{t('rewards')}</div><h2>{profile?.rewardPoints || 0} FP</h2><p>{t('cosmeticHelp')}</p><div className="cosmetic-list">{styles.map(style => <button className={`name-${style.id}`} key={style.id} onClick={() => run(() => buyNameStyle(style.id))}>{style.id.toUpperCase()} · {style.cost} FP</button>)}</div></section>
+      <section className="epic-panel locker-panel"><div className="eyebrow">LOCKER</div><h2>{lockerCopy[locale].title}</h2><div className="locker-preview"><Emblem username={profile?.username || 'P'} style={profile?.avatarStyle} /><strong className={`name-${profile?.nameStyle || 'default'}`}>{profile?.username}</strong></div><p>{lockerCopy[locale].help}</p><Link className="epic-button" href="/shop">{lockerCopy[locale].action}</Link></section>
+      <section className="epic-panel coins-panel"><div className="eyebrow">{t('accountCoins')}</div><h2>{new Intl.NumberFormat(locale).format(accountPortfolio.balance)} C</h2><p>{t('virtualCoinsNotice')}</p><p className="form-hint"><Link href="/wallet">{t('wallet')} →</Link></p></section>
     </div>
 
     <div className="account-detail-grid">

@@ -41,6 +41,7 @@ export default function Header() {
       <Link href="/dashboard">{t('market')}</Link>
       <Link href="/trading">{t('trading')}</Link>
       <Link href="/wallet">{t('wallet')}</Link>
+      <Link href="/shop">{t('shop')}</Link>
       <Link href="/dashboard/team">{t('squad')}</Link>
       <Link href="/leagues">{t('leagues')}</Link>
       <Link href="/leaderboard">{t('rankings')}</Link>
