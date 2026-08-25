@@ -21,6 +21,14 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     target-branch: main
+    groups:
+      # init and analyze have to move together. Split across two pull requests,
+      # each one leaves the workflow mixing codeql-action versions, which the
+      # action rejects: "Not all workflow steps that use `github/codeql-action`
+      # actions use the same version." Both then sit there failing forever.
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
     schedule:
       interval: weekly
       day: monday
