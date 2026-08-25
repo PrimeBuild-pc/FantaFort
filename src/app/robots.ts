@@ -5,7 +5,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: '*',
       allow: '/',
-      disallow: ['/account', '/admin', '/api/', '/auth', '/dashboard', '/friends', '/leaderboard', '/leagues', '/notifications', '/tournaments', '/trading', '/wallet'],
+      disallow: ['/account', '/admin', '/api/', '/auth', '/dashboard', '/friends', '/leaderboard', '/leagues', '/notifications', '/shop', '/tournaments', '/trading', '/wallet'],
     },
     sitemap: 'https://fantafort.com/sitemap.xml',
     host: 'https://fantafort.com',

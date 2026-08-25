@@ -34,7 +34,7 @@
 
 FantaFort is a multilingual fantasy experience for following competitive Fortnite. It combines private leagues, fantasy rosters, virtual markets, tournament scoring, standings, strategy mechanics, social features and player-performance insights in one independent product.
 
-The project is under active development and currently operates as a **limited alpha**. Virtual balances, top-ups and rewards are sandbox features only: they have no monetary value, cannot be purchased or cashed out, and do not represent gambling, betting or a financial product.
+The project is under active development and currently operates as a **limited alpha**. Coins, balances and cosmetic rewards are in-game only: they have no monetary value, cannot be bought with money, cannot be cashed out, and do not represent gambling, betting or a financial product. There is no payment flow of any kind in the product.
 
 > [!IMPORTANT]
 > FantaFort is an independent project. It is not endorsed by, affiliated with, authorized by or sponsored by Epic Games, Inc. Fortnite and related names, trademarks and assets belong to their respective owners.

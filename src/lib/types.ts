@@ -35,8 +35,8 @@ export interface Profile {
   rewardPoints: number;
   experiencePoints: number;
   isAdmin: boolean;
-  walletCents: number;
-  nameStyle: 'default' | 'storm' | 'victory' | 'legendary';
+  nameStyle: string;
+  avatarStyle: string;
   communityEmailOptIn: boolean;
   communityEmailOptedInAt: string | null;
   communityEmailOptedOutAt: string | null;
@@ -55,7 +55,8 @@ export interface PublicLineupPlayer {
 
 export interface PublicLineup {
   username: string;
-  nameStyle: Profile['nameStyle'];
+  nameStyle: string;
+  avatarStyle: string;
   rank: number;
   netWorth: number;
   badges: PublicBadge[];

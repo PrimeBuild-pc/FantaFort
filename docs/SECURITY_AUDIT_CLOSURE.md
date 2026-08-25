@@ -10,7 +10,7 @@ Closure update: 2026-08-09. Scope: repository, GitHub, Vercel, hosted Supabase s
 | FF-02 strategy BOLA | Fixed by owner-only RLS; cross-user reads are denied in integration tests. |
 | FF-03 invite entropy/throttle | Fixed with 16-hex codes, legacy invalidation and bounded failure tracking. |
 | FF-04 dependencies | Production and full `npm audit` gates pass. |
-| FF-07 sandbox top-up | Ledger, idempotency and daily cap are enforced; no real payment processing exists. |
+| FF-07 sandbox top-up | Closed by removal: the euro sandbox wallet, its ledger and `mock_top_up` were dropped in `202608250001_coin_shop_and_avatars.sql`. No payment surface remains. |
 | Hosted Auth | Retest found production preview wildcards had reappeared in the redirect allowlist. The allowlists were restored staging-first to the two exact `/auth` and `/auth?reset=1` URLs and reverified. Custom SMTP, password policy, refresh rotation, rate limits, email confirmation, Turnstile and TOTP/AAL2 are verified. |
 | Database ACL/transport | `SECURITY DEFINER` execution ACL migration applied; SSL enforcement verified on both projects and production post-reboot checks ended `POST-SSL: OK`. |
 | Backups | Weekly staging/production logical dumps are encrypted before artifact upload, retained 14 days, and a restore drill succeeded in an isolated local database. |

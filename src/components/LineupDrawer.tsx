@@ -3,6 +3,7 @@
 
 import { useEffect, useRef } from 'react';
 import BadgeList from '@/components/BadgeList';
+import Emblem from '@/components/Emblem';
 import { lineupCopy } from '@/lib/lineup';
 import type { Locale } from '@/lib/i18n';
 import type { PublicLineup } from '@/lib/types';
@@ -32,6 +33,7 @@ export default function LineupDrawer({ locale, username, lineup, error, onClose 
   return <div className="lineup-backdrop" onClick={onClose}>
     <aside className="lineup-drawer" role="dialog" aria-modal="true" aria-label={`${text.title} · ${username}`} onClick={event => event.stopPropagation()}>
       <header className="lineup-drawer-head">
+        <Emblem username={lineup?.username || username} style={lineup?.avatarStyle} className="lineup-emblem" />
         <div>
           <div className="eyebrow">{text.title}</div>
           <h2 className={`name-${lineup?.nameStyle || 'default'}`}>{lineup?.username || username}</h2>

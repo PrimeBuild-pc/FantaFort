@@ -86,19 +86,10 @@ try {
   if ((await wallet(userIds[0])).balance !== 10000) throw new Error('Wallet RLS write protection failed');
   const forgedLedger = await owner.from('wallet_transactions').insert({ user_id:userIds[0], amount:999999, balance_after:999999, type:'daily_rescue', idempotency_key:crypto.randomUUID() });
   if (!forgedLedger.error) throw new Error('Ledger RLS write protection failed');
-  const topUpRequest = crypto.randomUUID();
-  if (ok(await owner.rpc('mock_top_up', { amount_cents:1999, request_id:topUpRequest })) !== 1999
-    || ok(await owner.rpc('mock_top_up', { amount_cents:1999, request_id:topUpRequest })) !== 1999) {
-    throw new Error('Sandbox top-up idempotency failed');
-  }
-  ok(await owner.rpc('mock_top_up', { amount_cents:1999, request_id:crypto.randomUUID() }));
-  ok(await owner.rpc('mock_top_up', { amount_cents:999, request_id:crypto.randomUUID() }));
-  if (!(await owner.rpc('mock_top_up', { amount_cents:499, request_id:crypto.randomUUID() })).error) {
-    throw new Error('Sandbox top-up daily cap failed');
-  }
-  const topUpRows = ok(await owner.from('sandbox_top_up_ledger').select('amount_cents'));
-  if (topUpRows.length !== 3 || topUpRows.reduce((sum,row) => sum + row.amount_cents, 0) !== 4997) {
-    throw new Error('Sandbox top-up ledger failed');
+  // The euro sandbox wallet was removed: coins are the only balance, and the mock
+  // top-up must stay gone rather than linger as an unreachable RPC.
+  if (!(await owner.rpc('mock_top_up', { amount_cents:1999, request_id:crypto.randomUUID() })).error) {
+    throw new Error('Removed sandbox top-up is still callable');
   }
 
   ok(await owner.rpc('request_friend', { target_username: friendName }));
@@ -732,6 +723,22 @@ try {
   if (deletionProfile.account_status !== 'suspended' || privacyRequest.status !== 'pending'
     || !(await deletion.rpc('get_account_portfolio')).error) throw new Error('Account deletion request did not suspend access');
 
+  const emblem = ok(await owner.from('cosmetics').select('id,slug,price').eq('slug','blaze').single());
+  const beforeCosmetic = (await wallet(userIds[0])).balance;
+  const purchaseRequest = crypto.randomUUID();
+  ok(await owner.rpc('buy_cosmetic', { cosmetic_slug:'blaze', request_id:purchaseRequest }));
+  ok(await owner.rpc('buy_cosmetic', { cosmetic_slug:'blaze', request_id:purchaseRequest }));
+  if ((await wallet(userIds[0])).balance !== beforeCosmetic - emblem.price) throw new Error('Cosmetic purchase idempotency failed');
+  if (ok(await owner.from('profiles').select('avatar_style').single()).avatar_style !== 'blaze') throw new Error('Cosmetic purchase did not equip the emblem');
+  if (!(await owner.rpc('buy_cosmetic', { cosmetic_slug:'blaze', request_id:crypto.randomUUID() })).error) throw new Error('Duplicate cosmetic purchase was allowed');
+  if (!(await owner.rpc('buy_cosmetic', { cosmetic_slug:'not-a-cosmetic', request_id:crypto.randomUUID() })).error) throw new Error('Unknown cosmetic purchase was allowed');
+  if (!(await owner.rpc('equip_cosmetic', { cosmetic_kind:'avatar', cosmetic_slug:'royale' })).error) throw new Error('Unowned cosmetic could be equipped');
+  ok(await owner.rpc('equip_cosmetic', { cosmetic_kind:'avatar', cosmetic_slug:'default' }));
+  if (ok(await owner.from('profiles').select('avatar_style').single()).avatar_style !== 'default') throw new Error('Cosmetic reset failed');
+  if (!(await owner.from('cosmetics').update({ price:1 }).eq('id',emblem.id)).error) throw new Error('Cosmetic catalogue RLS write protection failed');
+  const ranked = ok(await owner.rpc('get_global_leaderboard', { search_username:null }));
+  if (ranked.length && !('avatar_style' in ranked[0])) throw new Error('Leaderboard is missing the profile emblem');
+
   const profile = ok(await owner.from('profiles').select('reward_points,experience_points').single());
   const friendProfile = ok(await friend.from('profiles').select('experience_points').single());
   if (profile.reward_points !== 100) throw new Error('Winner reward failed');
@@ -742,7 +749,7 @@ try {
     const ledgerBalance = rows.reduce((sum,row) => sum + row.amount, 0);
     if (ledgerBalance !== (await wallet(id)).balance) throw new Error(`Wallet ledger reconciliation failed for ${id}`);
   }
-  console.log('Supabase auth, social, notifications, progression, wallet, league and admin checks passed.');
+  console.log('Supabase auth, social, notifications, progression, wallet, cosmetics, league and admin checks passed.');
 } finally {
   await admin.from('admin_runtime_config').update({ mutations_enabled:false, badge_mutations_enabled:false, updated_at:new Date().toISOString() }).eq('singleton',true);
   await admin.from('app_errors').delete().eq('path', '/check');

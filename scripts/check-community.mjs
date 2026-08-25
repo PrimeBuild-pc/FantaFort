@@ -48,7 +48,7 @@ try {
 
   const publicRows=ok(await anonymous.rpc('get_global_leaderboard',{search_username:null}));
   if(publicRows.length!==50||publicRows.some(row=>row.is_current_user)) throw new Error('Anonymous Top 50 failed');
-  const allowed=['badges','is_current_user','name_style','net_worth','public_lineup','rank','username'];
+  const allowed=['avatar_style','badges','is_current_user','name_style','net_worth','public_lineup','rank','username'];
   if(publicRows.some(row=>JSON.stringify(Object.keys(row).sort())!==JSON.stringify(allowed))) throw new Error('Leaderboard exposed unexpected fields');
   if(JSON.stringify(publicRows).includes('@example.com')||ids.some(id=>JSON.stringify(publicRows).includes(id))) throw new Error('Leaderboard exposed private identity data');
   if(publicRows[0].username!==users[0].username||Number(publicRows[0].net_worth)!==20000+prices[0].price) throw new Error('Net-worth formula failed');
@@ -103,7 +103,7 @@ try {
   }
   const lineupKeys=['currentPrice','handle','photoUrl','playerId','rarity','realName','team'];
   if(JSON.stringify(Object.keys(visible.lineup[0]).sort())!==JSON.stringify(lineupKeys)) throw new Error('Public lineup returned unexpected player fields');
-  if(JSON.stringify(Object.keys(visible).sort())!==JSON.stringify(['badges','lineup','nameStyle','netWorth','rank','username'])) throw new Error('Public lineup returned unexpected fields');
+  if(JSON.stringify(Object.keys(visible).sort())!==JSON.stringify(['avatarStyle','badges','lineup','nameStyle','netWorth','rank','username'])) throw new Error('Public lineup returned unexpected fields');
 
   // A lineup with no players is a clean empty state, not an error.
   const emptyOwner=users[1];
