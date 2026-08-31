@@ -88,7 +88,8 @@ export default function AdminPage() {
       access_token:verified.data.access_token, refresh_token:verified.data.refresh_token,
     });
     if (session.error) { setMfaPending(false); return setMessage('MFA verification failed'); }
-    window.location.reload();
+    const next = new URLSearchParams(window.location.search).get('next');
+    window.location.assign(next && (next === '/admin' || next.startsWith('/admin/') || next.startsWith('/admin?')) ? next : '/admin');
   };
 
   const importResults = async (event:ChangeEvent<HTMLInputElement>) => {
