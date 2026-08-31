@@ -31,6 +31,10 @@ for (const expected of ["sessionStorage.getItem('fantafort_admin_return_section'
   "case 'users': window.location.replace('/admin/users')", "case 'badges': window.location.replace('/admin/badges')"]) {
   if (!adminPage.includes(expected)) throw new Error('Admin MFA verification does not restore the requested page');
 }
+const adminBadgesPage = await readFile('src/app/admin/badges/page.tsx', 'utf8');
+for (const expected of ['candidate.currently_awardable&&!candidate.already_awarded', "adminStepUp('badge'", "adminFetch('/api/admin/badges/bulk'", "badge:'founding-50',assign:true"]) {
+  if (!adminBadgesPage.includes(expected)) throw new Error('Founding 50 bulk award path is incomplete');
+}
 
 const server = await readFile('src/lib/admin/server.ts', 'utf8');
 for (const expected of ['getVerifiedAal', 'auth.getUser', "'authorize_admin_step_up_request'", 'adminRuntimeConfig().mfaEnforcementEnabled', 'adminRuntimeConfig().mutationsEnabled', 'origin !== request.nextUrl.origin']) {
