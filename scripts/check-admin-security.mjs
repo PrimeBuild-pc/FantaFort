@@ -24,10 +24,11 @@ for (const expected of ['auth.mfa.enroll', 'auth.mfa.challengeAndVerify', "curre
   if (!adminPage.includes(expected)) throw new Error('Admin MFA enrollment path is incomplete');
 }
 const adminClient = await readFile('src/lib/admin/client.ts', 'utf8');
-for (const expected of ['response.status === 403', ".toUpperCase() === 'GET'", 'window.location.replace', '`/admin?next=${encodeURIComponent(next)}`']) {
+for (const expected of ['response.status === 403', ".toUpperCase() === 'GET'", "sessionStorage.setItem('fantafort_admin_return_section'", "window.location.replace('/admin')"]) {
   if (!adminClient.includes(expected)) throw new Error('Admin reads do not redirect to MFA verification');
 }
-for (const expected of ["new URLSearchParams(window.location.search).get('next')", "next.startsWith('/admin/')", 'window.location.assign']) {
+for (const expected of ["sessionStorage.getItem('fantafort_admin_return_section')", "sessionStorage.removeItem('fantafort_admin_return_section')",
+  "case 'users': window.location.replace('/admin/users')", "case 'badges': window.location.replace('/admin/badges')"]) {
   if (!adminPage.includes(expected)) throw new Error('Admin MFA verification does not restore the requested page');
 }
 

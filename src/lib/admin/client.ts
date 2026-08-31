@@ -10,8 +10,11 @@ export async function adminFetch(input: string, init: RequestInit = {}) {
   const response = await fetch(input, { ...init, headers });
   if (response.status === 403 && (init.method || 'GET').toUpperCase() === 'GET'
     && typeof window !== 'undefined' && window.location.pathname !== '/admin') {
-    const next = `${window.location.pathname}${window.location.search}`;
-    window.location.replace(`/admin?next=${encodeURIComponent(next)}`);
+    const section = window.location.pathname.split('/')[2];
+    if (['users', 'players', 'badges', 'privacy', 'errors', 'audit'].includes(section)) {
+      window.sessionStorage.setItem('fantafort_admin_return_section', section);
+    }
+    window.location.replace('/admin');
   }
   return response;
 }
