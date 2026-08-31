@@ -23,6 +23,14 @@ if (adminPage.includes("rpc('get_admin_")) throw new Error('Admin page bypasses 
 for (const expected of ['auth.mfa.enroll', 'auth.mfa.challengeAndVerify', "currentAal !== 'aal2'"]) {
   if (!adminPage.includes(expected)) throw new Error('Admin MFA enrollment path is incomplete');
 }
+const adminClient = await readFile('src/lib/admin/client.ts', 'utf8');
+for (const expected of ['response.status === 403', ".toUpperCase() === 'GET'", "sessionStorage.setItem('fantafort_admin_return_section'", "window.location.replace('/admin')"]) {
+  if (!adminClient.includes(expected)) throw new Error('Admin reads do not redirect to MFA verification');
+}
+for (const expected of ["sessionStorage.getItem('fantafort_admin_return_section')", "sessionStorage.removeItem('fantafort_admin_return_section')",
+  "case 'users': window.location.replace('/admin/users')", "case 'badges': window.location.replace('/admin/badges')"]) {
+  if (!adminPage.includes(expected)) throw new Error('Admin MFA verification does not restore the requested page');
+}
 
 const server = await readFile('src/lib/admin/server.ts', 'utf8');
 for (const expected of ['getVerifiedAal', 'auth.getUser', "'authorize_admin_step_up_request'", 'adminRuntimeConfig().mfaEnforcementEnabled', 'adminRuntimeConfig().mutationsEnabled', 'origin !== request.nextUrl.origin']) {

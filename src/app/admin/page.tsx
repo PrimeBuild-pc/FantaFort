@@ -88,7 +88,17 @@ export default function AdminPage() {
       access_token:verified.data.access_token, refresh_token:verified.data.refresh_token,
     });
     if (session.error) { setMfaPending(false); return setMessage('MFA verification failed'); }
-    window.location.reload();
+    const section = window.sessionStorage.getItem('fantafort_admin_return_section');
+    window.sessionStorage.removeItem('fantafort_admin_return_section');
+    switch (section) {
+      case 'users': window.location.replace('/admin/users'); return;
+      case 'players': window.location.replace('/admin/players'); return;
+      case 'badges': window.location.replace('/admin/badges'); return;
+      case 'privacy': window.location.replace('/admin/privacy'); return;
+      case 'errors': window.location.replace('/admin/errors'); return;
+      case 'audit': window.location.replace('/admin/audit'); return;
+      default: window.location.reload();
+    }
   };
 
   const importResults = async (event:ChangeEvent<HTMLInputElement>) => {

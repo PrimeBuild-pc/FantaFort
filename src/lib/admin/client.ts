@@ -7,7 +7,16 @@ export async function adminFetch(input: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers);
   headers.set('Authorization', `Bearer ${data.session.access_token}`);
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
-  return fetch(input, { ...init, headers });
+  const response = await fetch(input, { ...init, headers });
+  if (response.status === 403 && (init.method || 'GET').toUpperCase() === 'GET'
+    && typeof window !== 'undefined' && window.location.pathname !== '/admin') {
+    const section = window.location.pathname.split('/')[2];
+    if (['users', 'players', 'badges', 'privacy', 'errors', 'audit'].includes(section)) {
+      window.sessionStorage.setItem('fantafort_admin_return_section', section);
+    }
+    window.location.replace('/admin');
+  }
+  return response;
 }
 
 export async function adminStepUp(scope:'role'|'economy'|'recovery'|'anonymize'|'account_status'|'session_revoke'|'badge', code:string, targetId?:string, targetIds?:string[]) {
