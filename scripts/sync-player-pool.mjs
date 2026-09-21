@@ -77,7 +77,7 @@ function remember(account, classification, eventLabel, rank) {
 
 for (const region of POOL_REGIONS) {
   if (requests >= REQUEST_BUDGET) break;
-  const data = await fetchOsirionJson(`/tournaments?region=${region}&includeHistoricData=true`, isTournamentResponse);
+  const data = await fetchOsirionJson(`/tournaments?region=${region}`, isTournamentResponse);
   requests++;
   const perEvent = new Map();
   const candidates = data.tournaments

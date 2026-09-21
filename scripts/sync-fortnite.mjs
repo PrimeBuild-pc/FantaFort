@@ -34,7 +34,7 @@ const largestTeams = new Map();
 function formatFromSize(size) { return ['unknown', 'solo', 'duo', 'trio', 'squad'][size] || 'unknown'; }
 
 for (const region of POOL_REGIONS) {
-  const data = await fetchOsirionJson(`/tournaments?region=${region}&includeHistoricData=true`, isTournamentResponse);
+  const data = await fetchOsirionJson(`/tournaments?region=${region}`, isTournamentResponse);
   const windows = data.tournaments
     .filter(event => isCompetitiveEvent(event.eventId))
     .flatMap(event => event.eventWindows.map(window => ({ event, window })))

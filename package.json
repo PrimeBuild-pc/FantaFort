@@ -34,8 +34,9 @@
     "react-dom": "19.2.8"
   },
   "overrides": {
+    "js-yaml": "4.3.2",
     "postcss": "8.5.23",
-    "sharp": "0.35.3"
+    "sharp": "0.35.4"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
