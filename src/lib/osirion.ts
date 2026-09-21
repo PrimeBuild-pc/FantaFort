@@ -11,7 +11,7 @@ function format(playlist='',eventId=''){const value=`${playlist} ${eventId}`.toL
 
 async function loadTournaments(region='EU'):Promise<Tournament[]>{
   if(!tournamentRegions.has(region))throw new Error('Invalid region');
-  const data=await fetchOsirionJson(`/tournaments?region=${region}&includeHistoricData=true`,isTournamentResponse,{cache:'no-store'}) as {tournaments:Event[]};const now=Date.now();
+  const data=await fetchOsirionJson(`/tournaments?region=${region}`,isTournamentResponse,{cache:'no-store'}) as {tournaments:Event[]};const now=Date.now();
   return (data.tournaments||[]).filter(event=>isDisplayEvent(event.eventId)).flatMap(event=>event.eventWindows.map(window=>{
     const leaderboard=window.scoreLocations.find(location=>location.isMain)||window.scoreLocations[0];if(!leaderboard)return null;
     const start=Date.parse(window.beginTime),end=Date.parse(window.endTime);

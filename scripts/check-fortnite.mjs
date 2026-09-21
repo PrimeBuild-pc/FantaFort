@@ -1,6 +1,6 @@
 import { fetchOsirionJson, isLeaderboardResponse, isTournamentResponse } from '../src/lib/osirion-fetch.ts';
 
-const tournaments = await fetchOsirionJson('/tournaments?region=EU&includeHistoricData=true', isTournamentResponse);
+const tournaments = await fetchOsirionJson('/tournaments?region=EU', isTournamentResponse);
 if (tournaments.success === false || tournaments.tournaments.length === 0) throw new Error('Invalid Osirion tournament response');
 
 const now = Date.now();
