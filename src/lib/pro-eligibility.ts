@@ -24,10 +24,11 @@ const EXCLUDED_FROM_DISPLAY = /test|performance/;
  * Divisions 4-5 are excluded as too far from professional play.
  */
 export function isCompetitiveEvent(eventId: string): boolean {
+  // Epic publishes the 2026 FNCS Globals under the opaque Manneken Pis event id.
   const id = eventId.toLowerCase();
   if (EXCLUDED_MODES.test(id)) return false;
   if (/division[45]/.test(id)) return false;
-  return /fncs|victorycup|cashcup|escargo_official/.test(id);
+  return /fncs|victorycup|cashcup|escargo_official|mannekenpis_official/.test(id);
 }
 
 /** Events shown on the public tournaments page. */
@@ -130,7 +131,7 @@ function divisionOf(id: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
-const isMajor = (id: string) => /global|grand|final|worldcup/.test(id);
+const isMajor = (id: string) => /global|grand|final|worldcup|mannekenpis_official/.test(id);
 
 /**
  * Classifies one leaderboard entry, or returns null when it does not qualify.
@@ -145,7 +146,7 @@ export function classifyEntry({ eventId, region, rank, flagToken }: {
   if (!isCompetitiveEvent(eventId) || !Number.isFinite(rank) || rank < 1) return null;
   const id = eventId.toLowerCase();
   const division = divisionOf(id);
-  const fncs = /fncs/.test(id);
+  const fncs = /fncs/.test(id) || id.includes('mannekenpis_official');
   const home = isHomeFlag(flagToken);
 
   if (/escargo_official/.test(id)) {
