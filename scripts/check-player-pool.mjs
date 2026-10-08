@@ -174,5 +174,15 @@ for (const [name, source] of [['pool import', pool], ['results sync', results]])
   assert.match(source, /POOL_REGIONS/, `${name} must use the shared region list`);
   assert.doesNotMatch(source, /\['EU', 'NAC'\]/, `${name} must not hard-code regions`);
 }
+// A leaderboard correction can replace accounts in the top 300. The sync must remove
+// displaced teams and their results after writing the current snapshot, not accumulate
+// duplicate ranks that keep affecting scoring and prices forever.
+assert.match(results, /await pruneStaleTeams\(\);/, 'results sync must prune displaced teams');
+assert.match(results, /for \(const windowId of prunableWindows\)/,
+  'an incomplete or live leaderboard must never trigger destructive pruning');
+assert.match(results, /from\('player_results'\)\.delete\(\)[\s\S]*\.in\('team_id', batch\)/,
+  'pruning a team must also remove its player results');
+assert.match(results, /from\('tournament_teams'\)\.delete\(\)[\s\S]*\.in\('team_id', batch\)/,
+  'pruning a team must cascade its members and sessions');
 
 console.log('check:pool OK');

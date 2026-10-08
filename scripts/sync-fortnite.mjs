@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { fetchOsirionJson, isLeaderboardResponse, isTournamentResponse } from '../src/lib/osirion-fetch.ts';
-import { eventFormat, isCompetitiveEvent, pagesForRankLimit, POOL_REGIONS, sizeFromFormat } from '../src/lib/pro-eligibility.ts';
+import { eventFormat, isCompetitiveEvent, MAX_QUALIFYING_RANK, pagesForRankLimit, POOL_REGIONS, sizeFromFormat } from '../src/lib/pro-eligibility.ts';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -30,6 +30,7 @@ const members = new Map();
 const sessions = new Map();
 const results = new Map();
 const largestTeams = new Map();
+const prunableWindows = new Set();
 
 function formatFromSize(size) { return ['unknown', 'solo', 'duo', 'trio', 'squad'][size] || 'unknown'; }
 
@@ -72,6 +73,7 @@ for (const region of POOL_REGIONS) {
     let totalPages = 1;
     let plannedPages = 1;
     let largestTeam = 1;
+    let pagesFetched = 0;
     for (let page = 0; page < Math.min(totalPages, plannedPages); page++) {
       const params = new URLSearchParams({
         leaderboardEventId:location.leaderboardEventId,
@@ -80,6 +82,7 @@ for (const region of POOL_REGIONS) {
       });
       const { leaderboard } = await fetchOsirionJson(`/tournaments/leaderboard?${params}`, isLeaderboardResponse);
       totalPages = leaderboard.totalPages;
+      pagesFetched++;
       if (page === 0) plannedPages = pagesForRankLimit(leaderboard.entries.length);
       for (const entry of leaderboard.entries) {
         const visiblePlayers = entry.players || [];
@@ -142,6 +145,15 @@ for (const region of POOL_REGIONS) {
       }
     }
     largestTeams.set(location.leaderboardEventWindowId, largestTeam);
+    const ranks = [...teams.values()]
+      .filter(team => team.window_id === location.leaderboardEventWindowId)
+      .map(team => team.rank);
+    const completeRanks = ranks.length && new Set(ranks).size === ranks.length
+      && Math.min(...ranks) === 1 && Math.max(...ranks) === ranks.length;
+    if (Date.parse(window.endTime) <= now && completeRanks
+      && (pagesFetched >= totalPages || Math.max(...ranks) >= MAX_QUALIFYING_RANK)) {
+      prunableWindows.add(location.leaderboardEventWindowId);
+    }
   }
 }
 
@@ -158,6 +170,35 @@ async function upsert(table, rows) {
   }
 }
 
+async function pruneStaleTeams() {
+  let pruned = 0;
+  for (const windowId of prunableWindows) {
+    const currentTeamIds = new Set([...teams.values()]
+      .filter(team => team.window_id === windowId)
+      .map(team => team.team_id));
+    const storedTeamIds = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase.from('tournament_teams').select('team_id')
+        .eq('window_id', windowId).order('team_id').range(from, from + 999);
+      if (error) throw error;
+      storedTeamIds.push(...data.map(team => team.team_id));
+      if (data.length < 1000) break;
+    }
+    const staleTeamIds = storedTeamIds.filter(teamId => !currentTeamIds.has(teamId));
+    for (let index = 0; index < staleTeamIds.length; index += 100) {
+      const batch = staleTeamIds.slice(index, index + 100);
+      const resultDelete = await supabase.from('player_results').delete()
+        .eq('window_id', windowId).in('team_id', batch);
+      if (resultDelete.error) throw resultDelete.error;
+      const teamDelete = await supabase.from('tournament_teams').delete()
+        .eq('window_id', windowId).in('team_id', batch);
+      if (teamDelete.error) throw teamDelete.error;
+    }
+    pruned += staleTeamIds.length;
+  }
+  console.log(`Pruned ${pruned} stale tournament teams.`);
+}
+
 // All provider responses are bounded and validated before the first write. Upserts are idempotent if a DB call fails mid-run.
 // Each phase announces itself: a bare Postgres error in the workflow log otherwise names no step.
 for (const [table, rows] of [
@@ -167,6 +208,9 @@ for (const [table, rows] of [
   console.log(`Upserting ${rows.size} ${table} rows.`);
   await upsert(table, rows);
 }
+// Provider corrections can replace teams in the bounded top 300. Upsert alone leaves
+// the displaced teams scoring forever; remove them only after every current row exists.
+await pruneStaleTeams();
 for (const [windowId, largestTeam] of largestTeams) {
   if (largestTeam <= 1) continue;
   const { error } = await supabase.from('tournaments').update({ format:formatFromSize(largestTeam) }).eq('window_id', windowId).eq('format', 'unknown');
