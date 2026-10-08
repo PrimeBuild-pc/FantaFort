@@ -15,16 +15,16 @@ export const PHOTO_SOURCE = {
   snapshot: 'July 2026',
 } as const;
 
-export type PhotoCredit = { author:string|null };
+export type PhotoCredit = { name:string; author:string|null };
 
 export const PHOTO_CREDITS: Record<string, PhotoCredit> = {
-  peterbot: { author:'Michal Konkol' },
-  pollo: { author:'Michal Konkol' },
-  cold: { author:'Michal Konkol' },
-  veno: { author:'Michal Konkol' },
-  clix: { author:'Michal Konkol' },
+  peterbot: { name:'Peter Kata', author:'Michal Konkol' },
+  pollo: { name:'Miguel Moreno', author:'Michal Konkol' },
+  cold: { name:'Joshua Butler', author:'Michal Konkol' },
+  veno: { name:'Harry Pearson', author:'Michal Konkol' },
+  clix: { name:'Cody Conrod', author:'Michal Konkol' },
   // ponytail: author unread — the credits page falls back to the source-level line.
-  thomas: { author:null },
+  thomas: { name:'Thomas Davidsen', author:null },
 };
 
 /** Attribution line for one photo. Falls back to the site-level source credit. */
