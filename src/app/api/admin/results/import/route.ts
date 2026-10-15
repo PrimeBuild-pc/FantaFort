@@ -18,6 +18,6 @@ export async function POST(request:NextRequest) {
     tournament_data: body.tournament, results_data: body.results,
     action_reason: body.reason.trim(), action_request_id: body.requestId, action_idempotency_key: body.idempotencyKey,
   });
-  if (result.error) return NextResponse.json({ error: result.error.message || 'Import rejected' }, { status:409 });
+  if (result.error) return NextResponse.json({ error: result.error.code === '22023' ? result.error.message : 'Import rejected' }, { status:409 });
   return NextResponse.json({ success:true, result:result.data });
 }

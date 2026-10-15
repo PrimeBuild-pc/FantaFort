@@ -5,7 +5,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import AdminNav from '@/components/AdminNav';
 import Header from '@/components/Header';
-import { adminFetch } from '@/lib/admin/client';
+import { adminFetch, adminStepUp } from '@/lib/admin/client';
 
 type KnownAccount = {
   account_id:string; username:string; flag_token:string|null; best_rank:number;
@@ -37,6 +37,7 @@ export default function AdminPlayersPage() {
   const [rosterPrice, setRosterPrice] = useState<Record<string, string>>({});
   const [rosterTier, setRosterTier] = useState<Record<string, string>>({});
   const [rosterPending, setRosterPending] = useState('');
+  const [mfaCode, setMfaCode] = useState('');
 
   useEffect(() => {
     adminFetch('/api/admin/session').then(async response => {
@@ -87,12 +88,18 @@ export default function AdminPlayersPage() {
   const updatePlayer = async (row:RosterPlayer) => {
     const actionReason = rosterReason[row.id]?.trim() || '';
     const price = Number(rosterPrice[row.id]);
-    if (actionReason.length < 3 || !Number.isFinite(price) || price <= 0) return;
+    if (actionReason.length < 3 || !Number.isInteger(price) || price < 1500 || price > 6500) {
+      setMessage('Price must be a whole number between 1,500 and 6,500 coins.'); return;
+    }
+    if (!/^\d{6}$/.test(mfaCode)) { setMessage('Enter your MFA code to change a price.'); return; }
     setRosterPending(row.id); setMessage('');
+    const stepUpToken = await adminStepUp('economy', mfaCode);
+    setMfaCode('');
+    if (!stepUpToken) { setRosterPending(''); setMessage('MFA step-up failed'); return; }
     const response = await adminFetch('/api/admin/players/update', {
       method:'POST',
       body:JSON.stringify({ id:row.id, price, tier: rosterTier[row.id] || null,
-        reason:actionReason, requestId:crypto.randomUUID(), idempotencyKey:crypto.randomUUID() }),
+        reason:actionReason, requestId:crypto.randomUUID(), idempotencyKey:crypto.randomUUID(), stepUpToken }),
     });
     setMessage(response?.ok ? `${row.handle} updated.` : 'Update rejected.');
     if (response?.ok) loadRoster();
@@ -127,6 +134,8 @@ export default function AdminPlayersPage() {
         <label>Status<select value={rosterActive} onChange={event => setRosterActive(event.target.value as 'true' | 'false' | '')}>
           <option value="true">Active</option><option value="false">Retired</option><option value="">All</option>
         </select></label>
+        <label>MFA code for price changes<input inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={mfaCode} disabled={!enabled}
+          onChange={event => setMfaCode(event.target.value.replace(/\D/g, '').slice(0, 6))} /></label>
       </form>
       <div className="table-wrap"><table>
         <thead><tr><th>Player</th><th>Team</th><th>Price</th><th>Tier</th><th>Reason</th><th /></tr></thead>
@@ -135,7 +144,7 @@ export default function AdminPlayersPage() {
           : roster.map(row => <tr key={row.id} className={row.active ? '' : 'selected-row'}>
             <td><strong>{row.handle}</strong><small>{row.active ? 'Active' : 'Retired'}{row.last_seen_at ? ` · seen ${new Date(row.last_seen_at).toLocaleDateString()}` : ''}</small></td>
             <td>{row.organization || '—'}</td>
-            <td><input type="number" min={1} aria-label={`Price for ${row.handle}`} value={rosterPrice[row.id] ?? String(row.price)} disabled={!enabled || rosterPending === row.id}
+            <td><input type="number" min={1500} max={6500} step={25} aria-label={`Price for ${row.handle}`} value={rosterPrice[row.id] ?? String(row.price)} disabled={!enabled || rosterPending === row.id}
               onChange={event => setRosterPrice(current => ({ ...current, [row.id]:event.target.value }))} /></td>
             <td><select aria-label={`Tier for ${row.handle}`} value={rosterTier[row.id] ?? (row.pro_tier || '')} disabled={!enabled || rosterPending === row.id}
               onChange={event => setRosterTier(current => ({ ...current, [row.id]:event.target.value }))}>
