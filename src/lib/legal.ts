@@ -1,6 +1,6 @@
 import { DISCORD_URL } from './community';
 
-export const LEGAL_VERSION = '2026-08-14';
+export const LEGAL_VERSION = '2026-10-15';
 // GDPR art. 13(1)(a) requires the controller to be identifiable, not described. The
 // controller is a natural person with no VAT number, which art. 4(7) allows; the name
 // plus the privacy address below is the identification the notice has to carry.
