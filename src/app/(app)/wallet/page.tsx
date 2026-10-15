@@ -4,6 +4,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
+import FeedbackNotice from '@/components/FeedbackNotice';
 import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
 import { supabase } from '@/lib/supabase';
@@ -46,7 +47,7 @@ export default function WalletPage() {
   if(loading)return <div className="app-shell"><Header/><main className="container page-content"><p className="notice">{t('loading')}</p></main></div>;
   if(!userId)return <div className="app-shell"><Header/><main className="container page-content"><div className="empty-state"><h2>{t('signIn')}</h2><Link href="/auth" className="epic-button">{t('login')}</Link></div></main></div>;
   return <div className="app-shell"><Header/><main className="container page-content"><div className="page-title"><div className="eyebrow">ACCOUNT ECONOMY</div><h1>{t('wallet')}</h1><p>{t('virtualCoinsNotice')}</p><p className="form-hint"><Link href="/shop">{t('shop')} →</Link></p></div>
-    {message&&<p className="notice" role="status">{message}</p>}
+    <FeedbackNotice message={message}/>
     <section className="portfolio-strip wallet-summary"><div><small>{t('available')}</small><b>{number(accountPortfolio.balance)} C</b></div><div><small>{t('locked')}</small><b>{number(accountPortfolio.lockedBalance)} C</b></div><div><small>{t('portfolio')}</small><b>{number(accountPortfolio.holdingsValue)} C</b></div><div><small>{t('totalEquity')}</small><b>{number(accountPortfolio.totalEquity)} C</b></div><Link href="/trading" className="epic-button">{t('trading')}</Link></section>
     <div className="wallet-grid"><section className="epic-panel"><div className="eyebrow">COMEBACK</div><h2>{t('dailyRescue')}</h2><p>{rescueExplanation}</p><button className="epic-button" disabled={pending||!accountPortfolio.rescueAvailable} onClick={claim}>{t('claim100')}</button></section>
       <section className="epic-panel"><div className="eyebrow">FRIENDS</div><h2>{t('giftCoins')}</h2><p>{t('giftRules')}</p>{friends.length?<form onSubmit={gift}><label>{t('friend')}<select value={friendId} onChange={event=>setFriendId(event.target.value)}>{friends.map(friend=><option value={friend.id} key={friend.id}>{friend.username}</option>)}</select></label><label>{t('amount')}<input type="number" min="10" max="300" step="10" value={amount} onChange={event=>setAmount(Number(event.target.value))}/></label><button className="epic-button" disabled={pending}>{t('sendGift')}</button></form>:<p className="notice">{t('addFriendFirst')}</p>}</section>

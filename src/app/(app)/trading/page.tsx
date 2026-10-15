@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
+import FeedbackNotice from '@/components/FeedbackNotice';
 import TradingChart, { ChartRange, TradingPoint } from '@/components/TradingChart';
 import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
@@ -150,7 +151,7 @@ export default function TradingPage() {
   if(!userId)return <div className="app-shell"><Header/><main className="container page-content"><div className="empty-state"><h2>{t('signIn')}</h2><Link href="/auth" className="epic-button">{t('login')}</Link></div></main></div>;
   return <div className="app-shell"><Header/><main className="container page-content trading-dashboard">
     <section className="trading-hero"><div><div className="eyebrow">VIRTUAL PLAYER EXCHANGE</div><h1>{t('trading')}</h1><p>{t('virtualCoinsNotice')}</p></div><div className={`market-clock ${marketStale?'stale':''}`}><small>{t('marketStatus')}</small><b>{marketStale?t('dataStale'):t('marketOnline')}</b><span>{lastSync?`${t('updated')} ${new Date(lastSync).toLocaleString(locale)}`:'—'}</span></div></section>
-    {message&&<p className="notice" role="status">{message}</p>}
+    <FeedbackNotice message={message}/>
     <section className="portfolio-strip finance-summary"><div><small>{t('available')}</small><b>{number(accountPortfolio.balance)} C</b></div><div><small>{t('invested')}</small><b>{number(accountPortfolio.holdingsValue)} C</b></div><div><small>{t('locked')}</small><b>{number(accountPortfolio.lockedBalance)} C</b></div><div><small>{t('totalEquity')}</small><b>{number(accountPortfolio.totalEquity)} C</b></div><div className={accountPortfolio.dailyPnl>=0?'positive':'negative'}><small>24H P&amp;L</small><b>{accountPortfolio.dailyPnl>=0?'+':''}{number(accountPortfolio.dailyPnl)} C</b></div><div className={accountPortfolio.totalPnl>=0?'positive':'negative'}><small>TOTAL P&amp;L</small><b>{accountPortfolio.totalPnl>=0?'+':''}{number(accountPortfolio.totalPnl)} C</b></div><Link href="/wallet" className="epic-button secondary">{t('wallet')}</Link></section>
 
     <section className="market-overview"><div><small>{t('listedPlayers')}</small><b>{summary.listed}</b></div><div className="positive"><small>{t('advancing')}</small><b>{advancing}</b></div><div className="negative"><small>{t('declining')}</small><b>{declining}</b></div><div className={averageMove>=0?'positive':'negative'}><small>{t('averageMove')}</small><b>{averageMove>=0?'+':''}{number(averageMove)} C</b></div><div className="mover-tape"><small>TOP MOVERS</small><span>{gainers.map(player=><button key={player.id} onClick={()=>setSelectedId(player.id)}>{player.handle} <em className="positive">+{number(player.priceChange||0)}</em></button>)}{losers.map(player=><button key={player.id} onClick={()=>setSelectedId(player.id)}>{player.handle} <em className="negative">{number(player.priceChange||0)}</em></button>)}</span></div></section>

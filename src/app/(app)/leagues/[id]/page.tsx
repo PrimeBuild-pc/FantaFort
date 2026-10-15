@@ -5,6 +5,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Header from '@/components/Header';
+import FeedbackNotice from '@/components/FeedbackNotice';
 import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
 import { searchMarketPlayers } from '@/lib/market-players';
@@ -123,7 +124,7 @@ export default function LeagueDashboardPage() {
 
   return <div className="app-shell"><Header /><main className="container page-content">
     <section className="live-hero"><div><div className="live-badge"><i /> LIVE FANTAFORT</div><h1>{league?.name || t('liveDashboard')}</h1><p>{updated ? `${t('updated')} ${updated.toLocaleTimeString(locale)}` : t('loading')}</p><small>{league ? `${t(`${league.scoringMode}Mode` as 'classicMode')} · ${marketOpen ? t('marketOpen') : t('marketClosed')}${league.economyMode === 'account_stake' ? ` · ${t('virtualPrizePool')}: ${(league.entryStake * league.members).toLocaleString(locale)} C` : ''}` : ''}</small></div><div className="league-actions"><Link href="/dashboard" className="epic-button">{t('market')}</Link>{league?.status === 'active' && (league.ownerId === userId ? canFinish : Boolean(league.endsAt && updated && Date.parse(league.endsAt) + 86400000 <= updated.getTime())) && <button className="epic-button secondary" onClick={async () => setMessage(await finishLeague(id) || t('winnerRewarded'))}>{t('finishLeague')}</button>}</div></section>
-    {message && <p className="notice" role="status">{message}</p>}
+    <FeedbackNotice message={message}/>
     <div className="standings">
       {rows.map((row, index) => <article className={`standing-row strategic ${index === 0 ? 'leader' : ''}`} key={row.user_id}>
         <div className="rank">#{index + 1}</div>
