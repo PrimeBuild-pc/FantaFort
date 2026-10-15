@@ -101,6 +101,8 @@ try {
     window_id:testWindow, event_id:testWindow, name:'Automated Strategy Check', region:'EU',
     starts_at:starts, ends_at:new Date(Date.now() + 65 * 60000).toISOString(), match_cap:6, format:'duo',
   }));
+  // Trading opens only after a completed reprice, not after a sync merely started.
+  ok(await admin.rpc('refresh_market_prices'));
 
   const players = ok(await admin.from('players').select('id,price').eq('active', true).order('price').limit(3));
   if (players.length < 3) throw new Error('Three active players required');

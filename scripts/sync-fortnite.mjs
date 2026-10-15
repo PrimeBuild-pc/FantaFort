@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { fetchOsirionJson, isLeaderboardResponse, isTournamentResponse } from '../src/lib/osirion-fetch.ts';
-import { eventFormat, isCompetitiveEvent, MAX_QUALIFYING_RANK, pagesForRankLimit, POOL_REGIONS, sizeFromFormat } from '../src/lib/pro-eligibility.ts';
+import { eventFormat, isCompetitiveEvent, isSafePrune, MAX_QUALIFYING_RANK, pagesForRankLimit, POOL_REGIONS, sizeFromFormat } from '../src/lib/pro-eligibility.ts';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -15,7 +15,7 @@ for (let from = 0; ; from += 1000) {
   // PostgREST caps a response well below the size of the pool, so an unpaginated read
   // silently saw a fraction of the eligible accounts and dropped every leaderboard entry
   // belonging to the rest. sync-player-pool.mjs already pages for the same reason.
-  const { data, error: playersError } = await supabase.from('players').select('id, account_id').eq('active', true).not('account_id', 'is', null).range(from, from + 999);
+  const { data, error: playersError } = await supabase.from('players').select('id, account_id').eq('active', true).not('account_id', 'is', null).order('id').range(from, from + 999);
   if (playersError) throw playersError;
   players.push(...data);
   if (data.length < 1000) break;
@@ -185,6 +185,10 @@ async function pruneStaleTeams() {
       if (data.length < 1000) break;
     }
     const staleTeamIds = storedTeamIds.filter(teamId => !currentTeamIds.has(teamId));
+    if (!isSafePrune({ stored: storedTeamIds.length, stale: staleTeamIds.length })) {
+      console.log(`Skipped pruning ${staleTeamIds.length} of ${storedTeamIds.length} teams in ${windowId}: looks like a truncated response.`);
+      continue;
+    }
     for (let index = 0; index < staleTeamIds.length; index += 100) {
       const batch = staleTeamIds.slice(index, index + 100);
       const resultDelete = await supabase.from('player_results').delete()

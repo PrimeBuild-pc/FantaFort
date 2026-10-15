@@ -84,14 +84,14 @@ export default function TradingPage() {
     const now=new Date().toISOString();
     Promise.all([
       supabase.from('account_watchlist').select('player_id').eq('user_id',userId),
-      supabase.from('tournaments').select('synced_at').order('synced_at',{ascending:false}).limit(1).single(),
+      supabase.from('market_state').select('repriced_at').maybeSingle(),
       supabase.rpc('get_wallet_history',{page_index:0}),
       supabase.from('tournaments').select('window_id').lte('starts_at',now).gte('ends_at',now).limit(1),
     ]).then(([watch,sync,ledger,live])=>{
       setWatchlist(new Set((watch.data||[]).map(row=>row.player_id)));
-      setLastSync(sync.data?.synced_at);
+      setLastSync(sync.data?.repriced_at);
       const freshnessMinutes=(live.data||[]).length?30:120;
-      setMarketStale(!sync.data?.synced_at||Date.now()-Date.parse(sync.data.synced_at)>freshnessMinutes*60000);
+      setMarketStale(!sync.data?.repriced_at||Date.now()-Date.parse(sync.data.repriced_at)>freshnessMinutes*60000);
       setTrades(((ledger.data||[]) as TradeRow[]).filter(row=>row.type==='trade_buy'||row.type==='trade_sell').slice(0,8));
     });
   },[userId]);
