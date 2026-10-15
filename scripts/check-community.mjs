@@ -61,10 +61,11 @@ try {
   const signedRows=ok(await signed.rpc('get_global_leaderboard',{search_username:null}));
   const own=signedRows.find(row=>row.is_current_user);
   if(signedRows.length!==51||Number(own?.rank)!==51||own?.username!==current.username) throw new Error('Authenticated outside-Top-50 position failed');
-  const search=ok(await anonymous.rpc('get_global_leaderboard',{search_username:current.username}));
+  if(!(await anonymous.rpc('get_global_leaderboard',{search_username:current.username})).error) throw new Error('Anonymous nickname search was allowed');
+  const search=ok(await signed.rpc('get_global_leaderboard',{search_username:current.username}));
   if(search.length!==1||Number(search[0].rank)!==51) throw new Error('Nickname search outside Top 50 failed');
-  for(const excluded of [synthetic,suspended,banned]) if(ok(await anonymous.rpc('get_global_leaderboard',{search_username:excluded.username})).length) throw new Error(`Excluded account leaked into leaderboard: ${excluded.username}`);
-  if(!(await anonymous.rpc('get_global_leaderboard',{search_username:'%'})).error) throw new Error('Invalid leaderboard search accepted');
+  for(const excluded of [synthetic,suspended,banned]) if(ok(await signed.rpc('get_global_leaderboard',{search_username:excluded.username})).length) throw new Error(`Excluded account leaked into leaderboard: ${excluded.username}`);
+  if(!(await signed.rpc('get_global_leaderboard',{search_username:'%'})).error) throw new Error('Invalid leaderboard search accepted');
 
   const contributor=ok(await signed.from('badges').select('id').eq('slug','contributor').single());
   if(!(await signed.from('user_badges').insert({user_id:current.id,badge_id:contributor.id,source:'admin'})).error) throw new Error('Badge assignment bypassed admin controls');
@@ -78,7 +79,7 @@ try {
   if(adminFreeRows.some(row=>row.username===richAdmin.username)) throw new Error('Administrator appeared in the leaderboard');
   if(adminFreeRows[0].username!==leader.username||Number(adminFreeRows[0].rank)!==1) throw new Error('Administrator net worth altered rank #1');
   if(adminFreeRows.length!==50||adminFreeRows.some((row,index)=>Number(row.rank)!==index+1)) throw new Error('Ranks were not renumbered without administrators');
-  if(ok(await anonymous.rpc('get_global_leaderboard',{search_username:richAdmin.username})).length) throw new Error('Administrator was searchable in the leaderboard');
+  if(ok(await signed.rpc('get_global_leaderboard',{search_username:richAdmin.username})).length) throw new Error('Administrator was searchable in the leaderboard');
 
   // Public lineups: default private, owner-controlled, authenticated readers only.
   const owner=users[0];
@@ -128,6 +129,17 @@ try {
   if(!(await signed.rpc('get_public_lineup',{target_username:owner.username})).error) throw new Error('Disabled visibility remained readable');
 
   ok(await admin.from('profiles').update({is_admin:false}).eq('id',richAdmin.id));
+
+  // Article 21 objections redact the player on every write path, including later syncs.
+  const objected=`objection_${suffix}`;
+  ok(await admin.from('players').insert({id:objected,account_id:objected,handle:'Objector',real_name:'Real Name',rarity:'rare',price:2000,active:true}));
+  ok(await admin.from('player_data_objections').insert({account_id:objected,handle:'Objector'}));
+  ok(await admin.from('players').update({active:true,handle:'Objector',real_name:'Real Name'}).eq('id',objected));
+  const redacted=ok(await anonymous.from('players').select('handle,real_name,active').eq('id',objected).single());
+  if(redacted.active||redacted.real_name||redacted.handle!=='Removed player') throw new Error('Objected player data was not redacted');
+  ok(await admin.from('player_data_objections').delete().eq('account_id',objected));
+  ok(await admin.from('players').delete().eq('id',objected));
+  if(!(await anonymous.rpc('get_global_leaderboard',{search_username:'rank'})).error) throw new Error('Anonymous leaderboard search was allowed');
   console.log('Community preferences, public leaderboard privacy, ranking, lineup visibility and dynamic badge checks passed.');
 } finally {
   if(ids.length) await admin.from('profiles').update({account_status:'suspended',is_admin:false}).in('id',ids);
