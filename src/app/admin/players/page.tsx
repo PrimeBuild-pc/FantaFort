@@ -93,7 +93,7 @@ export default function AdminPlayersPage() {
     }
     if (!/^\d{6}$/.test(mfaCode)) { setMessage('Enter your MFA code to change a price.'); return; }
     setRosterPending(row.id); setMessage('');
-    const stepUpToken = await adminStepUp('economy', mfaCode);
+    const stepUpToken = await adminStepUp('market', mfaCode);
     setMfaCode('');
     if (!stepUpToken) { setRosterPending(''); setMessage('MFA step-up failed'); return; }
     const response = await adminFetch('/api/admin/players/update', {

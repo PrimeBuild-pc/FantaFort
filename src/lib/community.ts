@@ -1,6 +1,6 @@
 import type { Locale } from './i18n';
 
-export const DISCORD_URL = 'https://discord.gg/V3m8pDe3wz';
+export const DISCORD_URL = 'https://discord.gg/uBgMgAZ8q8';
 export const COMMUNICATION_CONSENT_VERSION = 'product_updates_v1';
 
 export const communityCopy: Record<Locale, {
