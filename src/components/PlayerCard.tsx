@@ -57,24 +57,24 @@ export default function PlayerCard({ player, compareMode, compareSelected, onTog
     <div className={`player-flipper ${flipped ? 'is-flipped' : ''}`}>
       <section className="player-tile player-front" aria-hidden={flipped}>
         <div className="player-visual">
-          {compareMode && <button type="button" className="compare-check" aria-pressed={!!compareSelected} aria-label={`${t('compareSelect')} — ${player.handle}`} onClick={event => { event.stopPropagation(); onToggleCompare?.(player); }}>{compareSelected ? '✓' : ''}</button>}
+          {compareMode && <button type="button" className="compare-check" tabIndex={flipped ? -1 : 0} aria-pressed={!!compareSelected} aria-label={`${t('compareSelect')} — ${player.handle}`} onClick={event => { event.stopPropagation(); onToggleCompare?.(player); }}>{compareSelected ? '✓' : ''}</button>}
           {player.photoUrl ? <img src={player.photoUrl} alt={player.handle} loading="lazy" /> : <div className="player-silhouette" aria-label={t('photoPending')}><span>{player.handle.slice(0, 2).toUpperCase()}</span></div>}
-          <div className="price-tag"><b>{new Intl.NumberFormat(locale).format(player.price)}</b><small className={player.priceChange ? player.priceChange > 0 ? 'positive' : 'negative' : ''}>COINS {player.priceChange ? `${player.priceChange > 0 ? '▲' : '▼'} ${number(Math.abs(player.priceChange))}` : '•'}</small></div>
+          <div className="price-tag"><b>{new Intl.NumberFormat(locale).format(player.price)}</b><small className={player.priceChange ? player.priceChange > 0 ? 'positive' : 'negative' : ''}>{t('vcoins').toUpperCase()} {player.priceChange ? `${player.priceChange > 0 ? '▲' : '▼'} ${number(Math.abs(player.priceChange))}` : '•'}</small></div>
           <div className="rarity-label">{player.rarity}</div><div className="rarity-line" />
         </div>
         <div className="player-info">
           <div className="eyebrow">{player.team || 'FORTNITE PRO'}</div><h3>{player.handle}</h3>
           <p>{player.realName || player.eligibility || t('eligible')}</p>
-          <div className="quick-stats"><span><small>PTS</small><b>{number(player.tournamentPoints)}</b></span><span><small>CUPS</small><b>{number(player.cupsPlayed)}</b></span><em>{t('details')} ↻</em></div>
+          <div className="quick-stats"><span><small>PTS</small><b>{number(player.tournamentPoints)}</b></span><span><small>CUPS</small><b>{number(player.cupsPlayed)}</b></span><button type="button" className="card-flip-toggle" aria-expanded={flipped} tabIndex={flipped ? -1 : 0} onClick={event => { event.stopPropagation(); setFlipped(true); }}>{t('details')} ↻</button></div>
           <button className={isOwned ? 'epic-button owned' : 'epic-button'} tabIndex={flipped ? -1 : 0} onClick={act} disabled={auctionOnly || pending || (!isOwned && !canAfford)}>{auctionOnly ? t('auctionOnly') : pending ? t('wait') : isOwned ? t('sell') : t('purchase')}</button>
           {error && <p className="card-error" role="alert">{error}</p>}
         </div>
       </section>
 
       <section className="player-tile player-back" aria-hidden={!flipped}>
-        <div className="card-back-header"><div><div className="eyebrow">PLAYER ANALYSIS</div><h3>{player.handle}</h3></div><span>{player.rarity}</span></div>
+        <div className="card-back-header"><div><div className="eyebrow">{t('playerAnalysis')}</div><h3>{player.handle}</h3></div><span>{player.rarity}</span></div>
         <div className="stat-grid">{stats.map(([label, value]) => <div className="stat-cell" key={label}><small>{label}</small><b>{value}</b></div>)}</div>
-        <div className="eligibility-box"><small>{player.teammates?.length ? t('recentTeammates') : t('eligible')}</small><p>{player.teammates?.length ? player.teammates.map(teammate => teammate.handle).join(' · ') : player.eligibility || 'Curated competitive player'}</p>{player.averagePlacement != null && <span>{t('avgPlacement')}: #{number(player.averagePlacement)}</span>}</div>
+        <div className="eligibility-box"><small>{player.teammates?.length ? t('recentTeammates') : t('eligible')}</small><p>{player.teammates?.length ? player.teammates.map(teammate => teammate.handle).join(' · ') : player.eligibility || t('eligible')}</p>{player.averagePlacement != null && <span>{t('avgPlacement')}: #{number(player.averagePlacement)}</span>}</div>
         <div className="back-actions"><button className={isOwned ? 'epic-button owned' : 'epic-button'} tabIndex={flipped ? 0 : -1} onClick={act} disabled={auctionOnly || pending || (!isOwned && !canAfford)}>{auctionOnly ? t('auctionOnly') : pending ? t('wait') : isOwned ? t('sell') : t('purchase')}</button><button className="epic-button secondary" tabIndex={flipped ? 0 : -1} onClick={event => { event.stopPropagation(); setFlipped(false); }}>{t('front')}</button></div>
         {error && <p className="card-error" role="alert">{error}</p>}
       </section>

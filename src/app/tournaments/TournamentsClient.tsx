@@ -2,7 +2,7 @@
 "use client";
 
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Header from '@/components/Header';
 import { useLocale } from '@/context/LocaleContext';
 
@@ -25,7 +25,9 @@ export default function TournamentsPage({initialTournaments}:{initialTournaments
   const initialSelected=initialTournaments.find(item=>item.status==='live')||initialTournaments.find(item=>item.status==='completed')||initialTournaments[0];
   const [region,setRegion]=useState('EU'); const [tournaments,setTournaments]=useState<Tournament[]>(initialTournaments); const [selected,setSelected]=useState<Tournament|undefined>(initialSelected);
   const [entries,setEntries]=useState<Entry[]>([]); const [entryPage,setEntryPage]=useState(0); const [error,setError]=useState(''); const [loading,setLoading]=useState(false);
-  useEffect(()=>{let active=true;setLoading(true);setError('');fetch(`/api/fortnite/tournaments?region=${region}`).then(r=>r.ok?r.json():Promise.reject(Error('API unavailable'))).then(data=>{if(!active)return;setTournaments(data.tournaments);setSelected(data.tournaments.find((item:Tournament)=>item.status==='live')||data.tournaments.find((item:Tournament)=>item.status==='completed')||data.tournaments[0]);}).catch(reason=>active&&setError(reason.message)).finally(()=>active&&setLoading(false));return()=>{active=false};},[region]);
+  // The server already rendered the EU list; only fetch when the region changes.
+  const initialRegion=useRef(initialTournaments.length>0);
+  useEffect(()=>{if(initialRegion.current){initialRegion.current=false;return}let active=true;setLoading(true);setError('');fetch(`/api/fortnite/tournaments?region=${region}`).then(r=>r.ok?r.json():Promise.reject(Error('API unavailable'))).then(data=>{if(!active)return;setTournaments(data.tournaments);setSelected(data.tournaments.find((item:Tournament)=>item.status==='live')||data.tournaments.find((item:Tournament)=>item.status==='completed')||data.tournaments[0]);}).catch(reason=>active&&setError(reason.message)).finally(()=>active&&setLoading(false));return()=>{active=false};},[region]);
   useEffect(()=>{setEntryPage(0);if(!selected||selected.status==='upcoming'){setEntries([]);return}let active=true;setLoading(true);setError('');const q=new URLSearchParams({eventId:selected.eventId,windowId:selected.windowId,region:selected.region});fetch(`/api/fortnite/leaderboard?${q}`).then(r=>r.ok?r.json():Promise.reject(Error('Leaderboard unavailable'))).then(data=>active&&setEntries(data.entries)).catch(reason=>active&&setError(reason.message)).finally(()=>active&&setLoading(false));return()=>{active=false};},[selected]);
   const duration = (seconds: number | null) => seconds == null ? '—' : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2,'0')}`;
   const pageSize=25, totalEntryPages=Math.ceil(entries.length/pageSize), visibleEntries=entries.slice(entryPage*pageSize,(entryPage+1)*pageSize);

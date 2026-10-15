@@ -43,7 +43,7 @@ const MAX_ROSTER = 3;
 const EMPTY_PORTFOLIO: AccountPortfolio = { balance: 0, lockedBalance: 0, holdingsValue: 0, totalEquity: 0, unrealizedPnl: 0, realizedPnl: 0, totalPnl: 0, dailyPnl: 0, rescueAvailable: false, rescueReason: 'account_age', positions: [] };
 
 export function GameProvider({ children }: { children: ReactNode }) {
-  const { setLocale } = useLocale();
+  const { setLocale, t } = useLocale();
   const [coins, setCoins] = useState(10000);
   const [team, setTeam] = useState<Player[]>([]);
   const [leagues, setLeagues] = useState<League[]>([]);
@@ -147,13 +147,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (!supabase || !userId) return;
     const client = supabase;
     client.rpc('touch_presence');
-    const timer = setInterval(() => client.rpc('touch_presence'), 60000);
+    // Hidden tabs neither need fresh data nor count as online.
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') client.rpc('touch_presence'); }, 60000);
     return () => clearInterval(timer);
   }, [userId]);
 
   useEffect(() => {
     if (!supabase || !userId) return;
-    const timer = setInterval(() => loadCloudGame(userId, activeLeagueId).catch(() => undefined), 60000);
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') loadCloudGame(userId, activeLeagueId).catch(() => undefined); }, 60000);
     return () => clearInterval(timer);
   }, [activeLeagueId, loadCloudGame, userId]);
 
@@ -173,8 +174,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (!activeLeagueId) return accountTrade('buy', player.id);
     if (team.some(item => item.id === player.id)) return 'Player already in roster';
     const rosterLimit = leagues.find(league => league.id === activeLeagueId)?.rosterSize || MAX_ROSTER;
-    if (team.length >= rosterLimit) return `Roster is full (${rosterLimit} players)`;
-    if (coins < player.price) return 'Not enough coins';
+    if (team.length >= rosterLimit) return `${t('rosterFull')} (${rosterLimit})`;
+    if (coins < player.price) return t('notEnough');
     const { data } = await supabase.auth.getSession();
     if (!data.session) return 'Sign in first';
     const result = await supabase.rpc('league_buy_player', { target_league: activeLeagueId, target_player_id: player.id });

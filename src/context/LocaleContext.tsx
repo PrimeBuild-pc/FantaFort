@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
+import { usePathname } from 'next/navigation';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import { Locale, locales, translate, TranslationKey } from '@/lib/i18n';
 
@@ -15,6 +16,9 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     if (locales.includes(saved)) setLocaleState(saved);
     else if (locales.includes(browser)) setLocaleState(browser);
   }, []);
+  // Localized marketing URLs declare their language; elsewhere the chosen UI language does.
+  const pathLocale = usePathname().match(/^\/(it|es|de|fr)(?:\/|$)/)?.[1];
+  useEffect(() => { document.documentElement.lang = pathLocale || locale; }, [locale, pathLocale]);
   const setLocale = useCallback((value: Locale) => {
     setLocaleState(value);
     localStorage.setItem('fantafort-locale', value);

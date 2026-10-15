@@ -43,7 +43,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         else if (adminRoute && !loading && userId && !profile?.isAdmin) router.replace('/dashboard');
     }, [adminRoute, loading, pathname, profile?.isAdmin, router, userId]);
 
-    if (loading || !userId || (adminRoute && !profile?.isAdmin)) return null;
+    if (loading || !userId || (adminRoute && !profile?.isAdmin)) return <main className="route-loading" aria-busy="true" aria-label="Loading"><span className="logo"><span>FANTA</span>FORT</span></main>;
     return children;
 }
 

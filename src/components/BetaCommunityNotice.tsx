@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -6,6 +5,7 @@ import Link from 'next/link';
 import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
 import { communityCopy, DISCORD_URL } from '@/lib/community';
+import { cookieAcknowledged } from './CookieNotice';
 
 export default function BetaCommunityNotice() {
   const { profile, userId } = useGame();
@@ -13,7 +13,14 @@ export default function BetaCommunityNotice() {
   const [visible, setVisible] = useState(false);
   const key = `fantafort-beta-notice:${userId}`;
 
-  useEffect(() => { if (userId) setVisible(localStorage.getItem(key) !== 'dismissed'); }, [key, userId]);
+  // Waits for the cookie notice: on mobile both sit in the same spot and overlapped.
+  useEffect(() => {
+    if (!userId) return;
+    const update = () => setVisible(cookieAcknowledged() && localStorage.getItem(key) !== 'dismissed');
+    update();
+    window.addEventListener('fantafort:cookie-acknowledged', update);
+    return () => window.removeEventListener('fantafort:cookie-acknowledged', update);
+  }, [key, userId]);
   if (!visible || !userId) return null;
   const text = communityCopy[locale];
   const dismiss = () => { localStorage.setItem(key, 'dismissed'); setVisible(false); };
