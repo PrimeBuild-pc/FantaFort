@@ -7,6 +7,7 @@ import Emblem from '@/components/Emblem';
 import Header from '@/components/Header';
 import LegalFooter from '@/components/LegalFooter';
 import LineupDrawer from '@/components/LineupDrawer';
+import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
 import type { Locale } from '@/lib/i18n';
 import { lineupCopy } from '@/lib/lineup';
@@ -27,6 +28,7 @@ const mapRows = (data:unknown) => ((data || []) as Ranking[]).map(row => ({ ...r
 export default function LeaderboardPage() {
   const { locale } = useLocale();
   const text = copy[locale];
+  const { userId } = useGame();
   const [rows,setRows]=useState<Ranking[]>([]);
   const [query,setQuery]=useState('');
   const [results,setResults]=useState<Ranking[]|null>(null);
@@ -76,7 +78,7 @@ export default function LeaderboardPage() {
 
   return <div className="app-shell"><Header/><main className="container page-content global-leaderboard-page">
     <section className="leaderboard-hero"><div><div className="eyebrow">{text.eyebrow}</div><h1>{text.title}</h1><p>{text.intro}</p></div><div className="leaderboard-rule"><small>{text.worth}</small><strong>COINS + PORTFOLIO</strong><span>TOP 50</span></div></section>
-    <form className="leaderboard-search" onSubmit={search} role="search"><label htmlFor="leaderboard-search">{text.search}</label><div><input id="leaderboard-search" value={query} onChange={event=>setQuery(event.target.value)} minLength={1} maxLength={30}/><button className="epic-button" disabled={searching}>{searching?'…':text.searchAction}</button></div></form>
+    {userId&&<form className="leaderboard-search" onSubmit={search} role="search"><label htmlFor="leaderboard-search">{text.search}</label><div><input id="leaderboard-search" value={query} onChange={event=>setQuery(event.target.value)} minLength={1} maxLength={30}/><button className="epic-button" disabled={searching}>{searching?'…':text.searchAction}</button></div></form>}
     {error&&<p className="notice error" role="alert">{error}</p>}
     {results&&<section className="leaderboard-search-results" aria-live="polite"><h2>{text.search}</h2>{results.length?<div className="leaderboard-list">{results.map(row=><article key={row.username}><span className="rank">#{row.rank}</span><span className="leaderboard-manager"><Emblem username={row.username} style={row.avatar_style} className="leaderboard-emblem" /><span className="manager-text"><strong className={`name-${row.name_style}`}>{row.username}</strong><BadgeList badges={row.badges} compact/>{row.public_lineup?<button className="lineup-cta" onClick={()=>showLineup(row.username)}>{lineupText.view}</button>:<small className="lineup-private">{lineupText.private}</small>}</span></span><b>{format(row.net_worth)}</b></article>)}</div>:<p className="empty-state compact">{text.noMatch}</p>}</section>}
     {current&&current.rank>50&&<aside className="your-global-rank"><span>{text.yourRank}</span><strong>#{current.rank}</strong><b>{format(current.net_worth)}</b></aside>}

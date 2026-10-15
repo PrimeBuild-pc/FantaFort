@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getTournaments, tournamentRegions } from '@/lib/osirion';
 import { fetchOsirionJson, isLeaderboardResponse } from '@/lib/osirion-fetch';
 const SAFE_ID = /^[\w:.-]{1,200}$/;
 
-type Session = { sessionId: string; endTime: string; trackedStats: Record<string, number> };
+type Session = { sessionId: string; endTime: string; trackedStats: Record<string, number> | null };
 type Entry = {
   teamId: string;
   rank: number;
@@ -15,13 +16,18 @@ type Entry = {
 export async function GET(request: NextRequest) {
   const eventId = request.nextUrl.searchParams.get('eventId') || '';
   const windowId = request.nextUrl.searchParams.get('windowId') || '';
+  const region = (request.nextUrl.searchParams.get('region') || '').toUpperCase();
   const page = Number(request.nextUrl.searchParams.get('page') || 0);
-  const matchCap = Number(request.nextUrl.searchParams.get('matchCap') || 0);
 
-  if (!SAFE_ID.test(eventId) || !SAFE_ID.test(windowId) || !Number.isInteger(page) || page < 0 || page > 100
-    || !Number.isInteger(matchCap) || matchCap < 0 || matchCap > 50) {
+  if (!SAFE_ID.test(eventId) || !SAFE_ID.test(windowId) || !tournamentRegions.has(region)
+    || !Number.isInteger(page) || page < 0 || page > 100) {
     return NextResponse.json({ error: 'Invalid leaderboard parameters' }, { status: 400 });
   }
+  // Only proxy windows the cached tournament list knows; arbitrary ids would bypass the cache.
+  const tournament = (await getTournaments(region).catch(() => []))
+    .find(item => item.eventId === eventId && item.windowId === windowId);
+  if (!tournament) return NextResponse.json({ error: 'Unknown leaderboard' }, { status: 404 });
+  const matchCap = tournament.matchCap || 0;
 
   const params = new URLSearchParams({
     leaderboardEventId: eventId,
@@ -33,7 +39,7 @@ export async function GET(request: NextRequest) {
   if (!data) return NextResponse.json({ error: 'Leaderboard unavailable' }, { status: 502 });
 
   const entries = data.leaderboard.entries.map(entry => {
-    const sessions = entry.sessionHistory || [];
+    const sessions = (entry.sessionHistory || []).map(session => ({ ...session, trackedStats: session.trackedStats || {} }));
     return {
       teamId: entry.teamId,
       rank: entry.rank,

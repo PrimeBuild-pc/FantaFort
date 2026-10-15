@@ -12,18 +12,19 @@ import CookieNotice from "@/components/CookieNotice";
 import LegalFooter from "@/components/LegalFooter";
 import OnboardingGuide from "@/components/OnboardingGuide";
 
-const publicRoutes = new Set(["/", "/auth", "/about", "/cookies", "/how-it-works", "/leaderboard", "/methodology"]);
+const publicRoutes = new Set(["/", "/auth", "/about", "/cookies", "/credits", "/how-it-works", "/leaderboard", "/methodology", "/privacy", "/support", "/terms"]);
 const publicPrefix = /^\/(?:it|es|de|fr)(?:\/|$)|^\/(?:guides|players)(?:\/|$)/;
 
+// Visitors read the landing page; signed-in managers go straight to their dashboard.
 function HomeGate() {
     const { loading, userId } = useGame();
     const router = useRouter();
 
     useEffect(() => {
-        if (!loading) router.replace(userId ? '/dashboard' : '/auth');
+        if (!loading && userId) router.replace('/dashboard');
     }, [loading, router, userId]);
 
-    return <main className="route-loading" aria-busy="true" aria-label="Loading"><span className="logo"><span>FANTA</span>FORT</span></main>;
+    return null;
 }
 
 function LanguageSwitcher() {
@@ -69,7 +70,7 @@ function LevelUpNotice() {
 
 function RouteShell({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
-    if (pathname === '/') return <HomeGate />;
+    if (pathname === '/') return <>{children}<HomeGate /></>;
     const publicRoute = publicRoutes.has(pathname) || publicPrefix.test(pathname);
     if (publicRoute) return children;
     return <><LanguageSwitcher /><AuthGuard>{children}<BetaCommunityNotice /><OnboardingGuide /><LevelUpNotice /><CookieNotice /><LegalFooter /></AuthGuard></>;
