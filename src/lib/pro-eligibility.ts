@@ -221,9 +221,11 @@ export function isLegacyPoolEntry({ proTier, eligibilityNote }: {
  * Days a player may go without appearing in an imported leaderboard before leaving
  * the market. Membership decays on time, not on absence from one particular crawl:
  * a single incremental run scans a handful of windows, so "not in this run" says
- * nothing about whether someone is still competing.
+ * nothing about whether someone is still competing. 30 days since last_seen_at became the
+ * real window end (2026-10-15): the market sheds accounts that stopped qualifying within
+ * a month instead of half the alpha's lifetime.
  */
-export const POOL_GRACE_DAYS = 180;
+export const POOL_GRACE_DAYS = 30;
 
 /**
  * Whether an active player should leave the pool.

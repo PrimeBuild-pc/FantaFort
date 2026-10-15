@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Emblem from '@/components/Emblem';
 import Header from '@/components/Header';
+import FeedbackNotice from '@/components/FeedbackNotice';
 import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
 import { cosmeticName, mapCosmetic, type Cosmetic, type CosmeticKind } from '@/lib/cosmetics';
@@ -103,7 +104,7 @@ export default function ShopPage() {
 
   return <div className="app-shell"><Header/><main className="container page-content shop-page">
     <div className="page-title"><div className="eyebrow">{text.eyebrow}</div><h1>{text.title}</h1><p>{text.intro}</p></div>
-    {message&&<p className="notice" role="status">{message}</p>}
+    <FeedbackNotice message={message}/>
     <section className="portfolio-strip"><div><small>{text.balance}</small><b>{number(accountPortfolio.balance)} C</b></div><Link href="/wallet" className="epic-button secondary">{t('wallet')}</Link></section>
     {section('avatar',text.avatars,text.avatarsHelp)}
     {section('name_style',text.names,text.namesHelp)}

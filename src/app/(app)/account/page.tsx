@@ -7,6 +7,7 @@ import Link from 'next/link';
 import BadgeList from '@/components/BadgeList';
 import Emblem from '@/components/Emblem';
 import Header from '@/components/Header';
+import FeedbackNotice from '@/components/FeedbackNotice';
 import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
 import { communityCopy, DISCORD_URL } from '@/lib/community';
@@ -126,7 +127,7 @@ export default function AccountPage() {
 
   return <div className="app-shell"><Header /><main className="container page-content account-settings-page">
     <div className="page-title"><div className="eyebrow">PLAYER PROFILE</div><h1>{t('settings')}</h1></div>
-    {message && <p className="notice" role="status">{message}</p>}
+    <FeedbackNotice message={message}/>
     <div className="account-grid">
       <section className="epic-panel profile-panel"><div className="profile-panel-heading"><div className="eyebrow">PROFILE</div><h2>{t('account')}</h2></div><div className="profile-identity"><Emblem username={profile?.username || 'P'} style={profile?.avatarStyle} className="profile-emblem" /><div className="level-summary"><b>{t('level')} {level.level}</b><strong>{t(`badge_${level.badge}` as Parameters<typeof t>[0])}</strong><span>{level.current} / {level.required} XP</span><i role="progressbar" aria-label={`${t('level')} ${level.level}`} aria-valuemin={0} aria-valuemax={level.required} aria-valuenow={level.current}><em style={{ width:`${level.current / level.required * 100}%` }} /></i></div>{globalSummary&&<div className="profile-global-summary"><span>{t('position')} <b>#{globalSummary.rank}</b></span><span>{t('totalEquity')} <b>{new Intl.NumberFormat(locale).format(globalSummary.net_worth)} C</b></span><span>{t('fantapoints')} <b>{profile?.rewardPoints || 0} FP</b></span><BadgeList badges={globalSummary.badges}/></div>}</div><form onSubmit={submit}>
         <label>{t('username')}<input value={username} onChange={event => setUsername(event.target.value)} required minLength={3} maxLength={30} /></label>

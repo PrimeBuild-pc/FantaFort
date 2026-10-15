@@ -3,6 +3,7 @@
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
+import FeedbackNotice from '@/components/FeedbackNotice';
 import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
 import { LeagueSettings } from '@/lib/types';
@@ -30,7 +31,7 @@ export default function LeaguesPage() {
   const confirmJoin = async () => { await run(() => joinLeague(code)); setCode(''); setInvitePreview(undefined); };
   return <div className="app-shell"><Header /><main className="container page-content">
     <div className="page-title"><div className="eyebrow">SOCIAL HUB</div><h1>{t('leagues')}</h1><p>{t('leagueIntro')}</p></div>
-    {message && <p className="notice" role="status">{message}</p>}
+    <FeedbackNotice message={message}/>
     <div className="hub-grid">
       <section className="epic-panel"><h2>{t('createLeague')}</h2><form onSubmit={event => { event.preventDefault(); run(() => createLeague(leagueName, settings)); setLeagueName(''); }}>
         <label>{t('leagueName')}<input value={leagueName} onChange={event => setLeagueName(event.target.value)} minLength={3} required /></label>

@@ -18,7 +18,7 @@ for (const file of sourceFiles) {
   }
 }
 
-const adminPage = await readFile('src/app/admin/page.tsx', 'utf8');
+const adminPage = await readFile('src/app/(app)/admin/page.tsx', 'utf8');
 if (adminPage.includes("rpc('get_admin_")) throw new Error('Admin page bypasses the server API');
 for (const expected of ['auth.mfa.enroll', 'auth.mfa.challengeAndVerify', "currentAal !== 'aal2'"]) {
   if (!adminPage.includes(expected)) throw new Error('Admin MFA enrollment path is incomplete');
@@ -31,7 +31,7 @@ for (const expected of ["sessionStorage.getItem('fantafort_admin_return_section'
   "case 'users': window.location.replace('/admin/users')", "case 'badges': window.location.replace('/admin/badges')"]) {
   if (!adminPage.includes(expected)) throw new Error('Admin MFA verification does not restore the requested page');
 }
-const adminBadgesPage = await readFile('src/app/admin/badges/page.tsx', 'utf8');
+const adminBadgesPage = await readFile('src/app/(app)/admin/badges/page.tsx', 'utf8');
 for (const expected of ['candidate.currently_awardable&&!candidate.already_awarded', "adminStepUp('badge'", "adminFetch('/api/admin/badges/bulk'", "badge:'founding-50',assign:true"]) {
   if (!adminBadgesPage.includes(expected)) throw new Error('Founding 50 bulk award path is incomplete');
 }
@@ -189,7 +189,7 @@ const privacyMigration = await readFile('supabase/migrations/202607250001_privac
 for (const expected of ['request_account_deletion', "account_status = 'suspended'", 'delete from auth.sessions', 'account_privacy_requests_one_pending', 'profiles_resolve_privacy_request']) {
   if (!privacyMigration.includes(expected)) throw new Error('Privacy request guard is incomplete');
 }
-const accountPage = await readFile('src/app/account/page.tsx', 'utf8');
+const accountPage = await readFile('src/app/(app)/account/page.tsx', 'utf8');
 if (!accountPage.includes("rpc('request_account_deletion'") || accountPage.includes("rpc('delete_account'")) {
   throw new Error('Account deletion UI bypasses the reviewed request flow');
 }

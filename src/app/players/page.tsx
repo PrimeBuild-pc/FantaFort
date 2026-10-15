@@ -8,7 +8,7 @@ import { featuredPlayerIds } from '@/lib/public-players';
 import { supabase } from '@/lib/supabase';
 
 export const revalidate=900;
-export const metadata:Metadata={title:'FNCS Pro Player Database',description:'Browse competitive Fortnite players imported from recent Osirion FNCS results in the FantaFort market.',alternates:{canonical:'/players'},openGraph:{title:'FNCS Pro Player Database | FantaFort',description:'Competitive Fortnite player cards backed by recent Osirion FNCS results.',url:'/players'}};
+export const metadata:Metadata={title:'FNCS Pro Player Database',description:'Browse thousands of competitive Fortnite players from recent FNCS and open cup results, with prices and eligibility in the FantaFort market.',alternates:{canonical:'/players'},openGraph:{title:'FNCS Pro Player Database | FantaFort',description:'Competitive Fortnite player cards backed by recent Osirion FNCS results.',url:'/players'}};
 
 type PublicCard={id:string;handle:string;real_name:string|null;organization:string|null;photo_url:string|null;rarity:string;price:number;eligibility_note:string|null};
 const PAGE_SIZE=48;
