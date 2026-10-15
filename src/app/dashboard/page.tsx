@@ -59,7 +59,7 @@ export default function DashboardPage() {
   const firstPageButton = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
   const pageButtons = Array.from({ length: Math.min(5, totalPages) }, (_, index) => firstPageButton + index);
   const activeLeague = leagues.find(league => league.id === activeLeagueId);
-  const changePage = (nextPage:number) => { setPage(nextPage); document.querySelector('.market-toolbar')?.scrollIntoView({ behavior:'smooth' }); };
+  const changePage = (nextPage:number) => { setPage(nextPage); document.querySelector('.market-toolbar')?.scrollIntoView({ behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth' }); };
 
   return <div className="app-shell">
     <Header />
@@ -67,7 +67,7 @@ export default function DashboardPage() {
       <section className="market-hero">
         <div><div className="eyebrow">FORTNITE FANTASY</div><h1>{t('itemShop')}</h1><p>{t('choosePlayers')}</p></div>
         <div className="hero-status">
-          {activeLeague ? <><small>{t('activeLeague')}</small><strong>{activeLeague.name}</strong><span className={`status ${activeLeague.status}`}>{t(activeLeague.status)}</span></> : <><small>TRAINING MODE</small><strong>No league selected</strong><Link href="/leagues">{t('createLeague')} →</Link></>}
+          {activeLeague ? <><small>{t('activeLeague')}</small><strong>{activeLeague.name}</strong><span className={`status ${activeLeague.status}`}>{t(activeLeague.status)}</span></> : <><small>{t('trainingMode')}</small><strong>{t('noLeagueSelected')}</strong><Link href="/leagues">{t('createLeague')} →</Link></>}
         </div>
       </section>
       <div className="market-toolbar">

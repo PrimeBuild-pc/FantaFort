@@ -15,10 +15,12 @@ export default function NotificationsPage() {
   const { locale, t } = useLocale();
   const [notices, setNotices] = useState<Notice[]>([]);
   const [message, setMessage] = useState('');
+  const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase || !userId) return;
     const { data, error } = await supabase.rpc('get_notifications');
+    setLoaded(true);
     if (error) return setMessage(error.message);
     setNotices((data || []) as Notice[]);
     await supabase.rpc('mark_notifications_read');
@@ -35,6 +37,6 @@ export default function NotificationsPage() {
   return <div className="app-shell"><Header /><main className="container page-content">
     <div className="page-title"><div className="eyebrow">ACTIVITY</div><h1>{t('notifications')}</h1></div>
     {message && <p className="notice error" role="alert">{message}</p>}
-    <section className="epic-panel notification-list">{notices.length ? notices.map(notice => <Link href={href(notice)} className={!notice.read ? 'unread' : ''} key={notice.id}><i aria-hidden="true">◆</i><span><strong>{text(notice)}</strong><small>{new Date(notice.created_at).toLocaleString(locale)}</small></span></Link>) : <div className="empty-state compact"><p>{t('noNotifications')}</p></div>}</section>
+    <section className="epic-panel notification-list" aria-busy={!loaded}>{!loaded ? <div className="empty-state compact"><p>{t('loading')}</p></div> : notices.length ? notices.map(notice => <Link href={href(notice)} className={!notice.read ? 'unread' : ''} key={notice.id}><i aria-hidden="true">◆</i><span><strong>{text(notice)}</strong><small>{new Date(notice.created_at).toLocaleString(locale)}</small></span></Link>) : <div className="empty-state compact"><p>{t('noNotifications')}</p></div>}</section>
   </main></div>;
 }

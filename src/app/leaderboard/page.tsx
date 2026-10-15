@@ -7,6 +7,7 @@ import Emblem from '@/components/Emblem';
 import Header from '@/components/Header';
 import LegalFooter from '@/components/LegalFooter';
 import LineupDrawer from '@/components/LineupDrawer';
+import MarketingHeader from '@/components/MarketingHeader';
 import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
 import type { Locale } from '@/lib/i18n';
@@ -76,7 +77,7 @@ export default function LeaderboardPage() {
   const current=rows.find(row=>row.is_current_user);
   const format=(value:number)=>`${new Intl.NumberFormat(locale).format(value)} C`;
 
-  return <div className="app-shell"><Header/><main className="container page-content global-leaderboard-page">
+  return <div className="app-shell">{userId?<Header/>:<MarketingHeader locale={locale}/>}<main className="container page-content global-leaderboard-page">
     <section className="leaderboard-hero"><div><div className="eyebrow">{text.eyebrow}</div><h1>{text.title}</h1><p>{text.intro}</p></div><div className="leaderboard-rule"><small>{text.worth}</small><strong>COINS + PORTFOLIO</strong><span>TOP 50</span></div></section>
     {userId&&<form className="leaderboard-search" onSubmit={search} role="search"><label htmlFor="leaderboard-search">{text.search}</label><div><input id="leaderboard-search" value={query} onChange={event=>setQuery(event.target.value)} minLength={1} maxLength={30}/><button className="epic-button" disabled={searching}>{searching?'…':text.searchAction}</button></div></form>}
     {error&&<p className="notice error" role="alert">{error}</p>}

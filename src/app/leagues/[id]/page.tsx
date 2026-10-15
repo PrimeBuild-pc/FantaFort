@@ -72,8 +72,11 @@ export default function LeagueDashboardPage() {
     if (currentAuction) setBid(currentAuction.current_bid ? currentAuction.current_bid + 100 : currentAuction.starting_bid);
     setUpdated(new Date());
   }, [auctionOptions, id, userId]);
-  useEffect(() => { selectLeague(id); load(); const timer = setInterval(load, 30000); return () => clearInterval(timer); }, [id, load, selectLeague]);
-  useEffect(() => { const timer = setInterval(() => setClock(Date.now()), 1000); return () => clearInterval(timer); }, []);
+  // Selecting reloads the whole game; keep it off the load dependency, which changes when auction options arrive.
+  useEffect(() => { selectLeague(id); }, [id, selectLeague]);
+  useEffect(() => { load(); const timer = setInterval(() => { if (document.visibilityState === 'visible') load(); }, 30000); return () => clearInterval(timer); }, [load]);
+  // The one-second clock only drives the auction countdown.
+  useEffect(() => { if (!auction) return; const timer = setInterval(() => setClock(Date.now()), 1000); return () => clearInterval(timer); }, [auction]);
   // Only the auction form needs a player list, and it never showed more than 150.
   useEffect(() => {
     if (!supabase) return;

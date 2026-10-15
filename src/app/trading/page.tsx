@@ -142,7 +142,7 @@ export default function TradingPage() {
     if(result.error)return setMessage(result.error.message);
     setWatchlist(current=>{const next=new Set(current);if(watched)next.delete(selected.id);else next.add(selected.id);return next;});
   };
-  const selectForTrade=(player:Player,nextSide?:'buy'|'sell')=>{setSelectedId(player.id);if(nextSide)setSide(nextSide);document.getElementById('order-ticket')?.scrollIntoView({behavior:'smooth',block:'center'});};
+  const selectForTrade=(player:Player,nextSide?:'buy'|'sell')=>{setSelectedId(player.id);if(nextSide)setSide(nextSide);document.getElementById('order-ticket')?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'center'});};
   const tradeValue=side==='sell'?Math.floor((selected?.price||0)*.95):selected?.price||0;
   const balanceAfter=side==='sell'?accountPortfolio.balance+tradeValue:accountPortfolio.balance-tradeValue;
 

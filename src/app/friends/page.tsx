@@ -35,7 +35,7 @@ export default function FriendsPage() {
     setInvites((inviteRows.data || []) as Invite[]);
   }, [userId]);
 
-  useEffect(() => { load(); const timer = setInterval(load, 30000); return () => clearInterval(timer); }, [load]);
+  useEffect(() => { load(); const timer = setInterval(() => { if (document.visibilityState === 'visible') load(); }, 30000); return () => clearInterval(timer); }, [load]);
 
   const rpc = async (fn:string, args:Record<string,unknown>, updateGame = false) => {
     if (!supabase) return;

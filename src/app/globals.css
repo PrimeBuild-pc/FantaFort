@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;
   --yellow: #f5d300;
   --blue: #20a8ff;
   --cyan: #62e7ff;
@@ -134,7 +135,7 @@ h3 { font-size: 1.7rem; }
 .hero-status strong { font: 800 1.5rem var(--font-heading); text-transform: uppercase; }
 .market-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1.5rem 0; color: var(--muted); font: 700 .85rem var(--font-body); }
 .search-box { width: min(500px,100%); display: flex; align-items: center; gap: .6rem; padding: 0 1rem; background: #0e2039; border: 1px solid var(--line); }
-.search-box:focus-within { background:#132b49; }
+.search-box:focus-within { background:#132b49; outline:2px solid var(--cyan); outline-offset:2px; }
 .search-box span { font-size: 1.8rem; color: var(--cyan); }
 .search-box input { border: 0; background: transparent; padding-inline: 0; }
 .search-box input:focus-visible { outline:0; box-shadow:none; }
@@ -146,7 +147,6 @@ h3 { font-size: 1.7rem; }
 .player-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(255px,1fr)); gap: 1.2rem; align-items: start; }
 .player-card-skeleton { height: 340px; border-radius: 14px; border: 1px solid rgba(255,255,255,.08); background: linear-gradient(100deg, rgba(255,255,255,.04) 30%, rgba(255,255,255,.10) 50%, rgba(255,255,255,.04) 70%) 0 0 / 300% 100%; animation: skeleton-sweep 1.4s ease-in-out infinite; }
 @keyframes skeleton-sweep { to { background-position: -150% 0; } }
-@media (prefers-reduced-motion: reduce) { .player-card-skeleton { animation: none; } }
 .player-card-shell { --rarity:#20a8ff; height:520px; min-width:0; perspective:1200px; cursor:pointer; transition:transform .16s,filter .16s; animation:card-in .28s both; }
 .player-card-shell:hover { transform:translateY(-7px) scale(1.015); filter:drop-shadow(0 16px 18px rgba(0,0,0,.38)); }
 .player-card-shell:focus-visible { outline:1px solid rgba(98,231,255,.75); outline-offset:3px; box-shadow:0 0 0 3px rgba(98,231,255,.1),0 0 24px rgba(98,231,255,.45); }
@@ -170,9 +170,9 @@ h3 { font-size: 1.7rem; }
 .player-info .epic-button { width:100%; margin-top:auto; }
 .quick-stats { display:grid; grid-template-columns:auto auto 1fr; align-items:center; gap:.7rem; margin:.2rem 0 .8rem; padding:.55rem; color:white; background:#182638; }
 .quick-stats span { display:grid; }
-.quick-stats small { color:#9eb2ca; font-size:.56rem; font-weight:800; }
+.quick-stats small { color:#9eb2ca; font-size:.65rem; font-weight:800; }
 .quick-stats b { font:400 1.05rem var(--font-heading); }
-.quick-stats em { color:var(--cyan); text-align:right; font-size:.67rem; font-style:normal; font-weight:800; text-transform:uppercase; }
+.quick-stats .card-flip-toggle { justify-self:end; padding:0; border:0; color:var(--cyan); background:none; font:800 .67rem var(--font-body); text-transform:uppercase; cursor:pointer; }
 .rarity-label { position:absolute; z-index:2; left:10px; bottom:12px; padding:.28rem .5rem; color:white; background:rgba(5,10,20,.72); font-size:.6rem; font-weight:900; letter-spacing:.12em; text-transform:uppercase; }
 .compare-check { position:absolute; z-index:3; top:10px; left:10px; width:26px; height:26px; display:grid; place-items:center; color:transparent; background:rgba(5,10,20,.72); border:1.5px solid var(--border-strong); font-weight:900; cursor:pointer; }
 .compare-check:hover { border-color:var(--cyan); }
@@ -343,7 +343,6 @@ form { display:grid; gap:1rem; }
 .leaderboard-search-results { margin:1.5rem 0 2rem; }.leaderboard-search-results h2 { margin-bottom:1rem; font-size:1.6rem; }
 .leaderboard-skeleton { display:grid; gap:.45rem; }.leaderboard-skeleton i { height:70px; background:linear-gradient(90deg,#10243e,#183657,#10243e); background-size:200% 100%; animation:leaderboard-load 1.2s linear infinite; }
 @keyframes leaderboard-load { to { background-position:-200% 0; } }
-@media (prefers-reduced-motion:reduce) { .leaderboard-skeleton i { animation:none; } }
 .strategy-panel { display:grid; grid-template-columns:minmax(260px,.8fr) minmax(320px,1.2fr); gap:2rem; margin-top:2rem; }
 .strategy-panel h2 { margin-bottom:.8rem; }
 .strategy-panel p { color:var(--muted); line-height:1.5; }
@@ -541,18 +540,29 @@ tbody tr:hover { background:rgba(32,168,255,.08); }
 }
 @media (max-width:760px) {
   .container { width:min(100% - 1rem,1500px); }
-  .site-header { position:relative; padding:.7rem; gap:.7rem; }
+  /* backdrop-filter makes the header the containing block of position:fixed children,
+     which pinned the bottom tab bar inside the header instead of the viewport. */
+  .site-header { position:relative; padding:.7rem; gap:.7rem; backdrop-filter:none; }
   .site-header .desktop-nav { display:none; }
   .site-header .mobile-nav { position:fixed; z-index:220; inset:auto 0 0; display:grid; grid-template-columns:repeat(5,1fr); gap:0; margin:0; padding:.35rem max(.25rem,env(safe-area-inset-right)) calc(.35rem + env(safe-area-inset-bottom)) max(.25rem,env(safe-area-inset-left)); background:rgba(5,14,29,.98); border-top:1px solid var(--line); box-shadow:0 -10px 30px rgba(0,0,0,.4); }
   .site-header .mobile-nav a { min-width:0; display:grid; place-items:center; gap:.15rem; padding:.35rem .15rem; color:var(--cyan); font-size:1rem; }
   .site-header .mobile-nav .nav-icon { width:22px; height:22px; }
-  .site-header .mobile-nav small { max-width:100%; overflow:hidden; text-overflow:ellipsis; color:#cad8e9; font-size:.52rem; text-transform:uppercase; white-space:nowrap; }
+  .site-header .mobile-nav small { max-width:100%; overflow:hidden; text-overflow:ellipsis; color:#cad8e9; font-size:.62rem; text-transform:uppercase; white-space:nowrap; }
+  .site-header .mobile-more { position:relative; min-width:0; }
+  .site-header:has(.mobile-more[open]) { z-index:320; }
+  .site-header .mobile-nav { overflow:visible; }
+  .site-header .mobile-more summary { display:grid; place-items:center; gap:.15rem; padding:.35rem .15rem; color:var(--cyan); list-style:none; cursor:pointer; }
+  .site-header .mobile-more summary::-webkit-details-marker { display:none; }
+  .site-header .mobile-more-menu { position:absolute; right:0; bottom:calc(100% + .5rem); display:grid; min-width:12rem; padding:.35rem; background:#050e1d; border:1px solid var(--line); box-shadow:0 -10px 30px rgba(0,0,0,.4); }
+  .site-header .mobile-nav .mobile-more-menu a { display:block; padding:.7rem .9rem; color:#e6f0fb; font:700 .95rem var(--font-heading); letter-spacing:.04em; text-transform:uppercase; }
+  .site-header .mobile-nav .mobile-more-menu a:hover,.site-header .mobile-nav .mobile-more-menu a:focus-visible { color:var(--cyan); background:rgba(98,231,255,.08); }
   .compact-select,.league-coins { display:none; }
   .header-actions { width:100%; overflow-x:auto; padding:.2rem 0; }
   .account-pill { display:block; max-width:140px; }
   .site-header .link-button { display:block; white-space:nowrap; }
   .page-content { padding-bottom:7rem; }
   .global-language { right:.65rem; bottom:5.4rem; }
+  body:has(.cookie-notice,.beta-community-notice) .global-language { display:none; }
   .market-hero { min-height:280px; align-items:start; flex-direction:column; padding:1.4rem; }
   .market-hero h1 { font-size:clamp(2.8rem,15vw,5rem); }
   .hero-status { margin-top:auto; width:100%; }
@@ -755,9 +765,9 @@ tbody tr:hover { background:rgba(32,168,255,.08); }
   .danger-zone .danger-button,.privacy-export button { width:100%; }
 }
 
+/* One rule for every animation, transition and smooth scroll, including ones added later. */
 @media (prefers-reduced-motion:reduce) {
-  .route-loading .logo,.auth-showcase::before,.auth-arena,.marketing-hero::before,.marketing-hero-copy,.marketing-hero-stage,.landing-ticker>div,.auth-live i,.stage-hud i { animation:none; }
-  .landing-steps li { transition:none; }
+  *,*::before,*::after { animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; scroll-behavior:auto!important; }
 }
 
 /* Sortable admin tables: the whole header cell is the control. */
@@ -769,7 +779,6 @@ tbody tr:hover { background:rgba(32,168,255,.08); }
 .sortable-table th[aria-sort="ascending"] button span,.sortable-table th[aria-sort="descending"] button span { opacity:1; }
 .row-skeleton td { padding:.55rem .6rem; }
 .row-skeleton span { display:block; height:1.15rem; border-radius:4px; background:linear-gradient(100deg,rgba(255,255,255,.04) 30%,rgba(255,255,255,.10) 50%,rgba(255,255,255,.04) 70%) 0 0 / 300% 100%; animation:skeleton-sweep 1.4s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { .row-skeleton span { animation:none; } }
 
 /* Bulk badge bar: appears only with a selection, above the account table. */
 .bulk-bar { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:.8rem; align-items:end; margin-bottom:1rem; border-color:var(--cyan); }
