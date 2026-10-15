@@ -77,7 +77,7 @@ export default function AdminUserDetailPage() {
       || Math.abs(delta) > 10000 || reason.trim().length < 3 || !/^\d{6}$/.test(mfaCode)
       || !window.confirm(`Apply ${delta > 0 ? '+' : ''}${delta} coins to ${user.username}?`)) return;
     setPending(true); setMessage('');
-    const stepUpToken = await adminStepUp('economy', mfaCode);
+    const stepUpToken = await adminStepUp('economy', mfaCode, id);
     if (!stepUpToken) { setPending(false); setMessage('MFA step-up failed'); return; }
     const requestId = crypto.randomUUID();
     const response = await adminFetch(`/api/admin/users/${encodeURIComponent(id)}/wallet`, {
@@ -112,7 +112,7 @@ export default function AdminUserDetailPage() {
       || (anonymizeConfirm !== user.email && anonymizeConfirm !== user.id) || reason.trim().length < 3
       || !/^\d{6}$/.test(mfaCode) || !window.confirm(`Permanently anonymize ${user.username}?`)) return;
     setPending(true); setMessage('');
-    const stepUpToken = await adminStepUp('anonymize', mfaCode);
+    const stepUpToken = await adminStepUp('anonymize', mfaCode, id);
     if (!stepUpToken) { setPending(false); setMessage('MFA step-up failed'); return; }
     const requestId = crypto.randomUUID();
     const response = await adminFetch(`/api/admin/users/${encodeURIComponent(id)}/anonymize`, {

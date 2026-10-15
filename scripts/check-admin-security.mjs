@@ -101,8 +101,9 @@ for (const expected of ['prepareAdminMutation(request,adminBadgeMutationsEnabled
   if (!badgeRoute.includes(expected)) throw new Error('Admin badge route guard is incomplete');
 }
 const stepUpRoute = await readFile('src/app/api/admin/step-up/route.ts', 'utf8');
-for (const expected of ["scope === 'badge' ? adminBadgeMutationsEnabled() : adminMutationsEnabled()", 'if (!scopeEnabled(body.scope))',
-  '!adminMutationsEnabled() && !adminBadgeMutationsEnabled()', 'rejectCrossOriginMutation']) {
+for (const expected of ["scope === 'badge' ? adminBadgeMutationsEnabled()", "scope === 'market' ? adminPlayerPoolMutationsEnabled() : adminMutationsEnabled()",
+  'if (!scopeEnabled(body.scope))', '!adminMutationsEnabled() && !adminBadgeMutationsEnabled() && !adminPlayerPoolMutationsEnabled()',
+  "const targetedScopes = new Set(['role', 'economy', 'recovery', 'anonymize'", 'rejectCrossOriginMutation']) {
   if (!stepUpRoute.includes(expected)) throw new Error('Admin step-up capability gate is incomplete');
 }
 // Technical accounts must be identifiable by metadata, not by nickname or email-domain guessing.

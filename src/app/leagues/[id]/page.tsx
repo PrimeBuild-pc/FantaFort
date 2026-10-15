@@ -47,7 +47,8 @@ export default function LeagueDashboardPage() {
     if (!supabase) return;
     const now = new Date().toISOString();
     const [dashboard, tournaments, strategies, auctions] = await Promise.all([
-      supabase.rpc('get_league_dashboard', { target_league: id }),
+      // Live for running leagues, the frozen payout snapshot once completed.
+      supabase.rpc('get_league_standings', { target_league: id }),
       supabase.from('tournaments').select('window_id,name,starts_at,format,match_cap').gt('starts_at', now).order('starts_at').limit(12),
       supabase.from('league_strategy_picks').select('id,window_id,pick_type,player_id,partner_player_id,predicted_points,cost').eq('league_id', id).eq('user_id', userId || ''),
       supabase.from('league_auctions').select('id,player_id,starting_bid,current_bid,bidder_id,ends_at,status,players(handle,price)').eq('league_id', id).eq('status','active').maybeSingle(),
