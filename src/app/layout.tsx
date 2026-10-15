@@ -39,8 +39,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${notoSans.variable} ${luckiestGuy.variable}`}>
+    <html lang="en" className={`${notoSans.variable} ${luckiestGuy.variable}`}>
+      <body>
         <Providers>{children}</Providers>
       </body>
     </html>
