@@ -249,3 +249,12 @@ export function shouldDeactivate({
   if (!Number.isFinite(seen)) return false;
   return seen < now - graceDays * 86_400_000;
 }
+
+/**
+ * Pruning removes stored teams the provider no longer lists. A correction displaces a
+ * handful; a truncated response (short page, under-reported totalPages) would drop
+ * most of a window, and a window that ages out of the sync is never re-fetched.
+ */
+export function isSafePrune({ stored, stale }: { stored: number; stale: number }): boolean {
+  return stale <= Math.max(10, Math.floor(stored * 0.1));
+}

@@ -22,7 +22,7 @@ let requests = 0;
 
 const existing = [];
 for (let from = 0; ; from += 1000) {
-  const { data, error } = await supabase.from('players').select('id, account_id, price, rarity, photo_url, active, last_seen_at, pro_tier, eligibility_note').range(from, from + 999);
+  const { data, error } = await supabase.from('players').select('id, account_id, active, last_seen_at, pro_tier, eligibility_note, retired_at').order('id').range(from, from + 999);
   if (error) throw error;
   existing.push(...data);
   if (data.length < 1000) break;
@@ -48,9 +48,14 @@ const teamRows = new Map();
 const memberRows = new Map();
 const resultRows = new Map();
 
+// Decay needs the date a player last competed, not the date this script last ran: the
+// stored-history pass below re-reads every recorded window, so "now" kept everyone alive.
+const lastSeen = new Map();
+
 /** Keeps the strongest claim when a player appears in several events. */
-function remember(account, classification, eventLabel, rank) {
-  if (objected.has(account.accountId)) return;
+function remember(account, classification, eventLabel, rank, endedAt) {
+  if (objected.has(account.accountId) || existingByAccount.get(account.accountId)?.retired_at) return;
+  if (endedAt > (lastSeen.get(account.accountId) || '')) lastSeen.set(account.accountId, endedAt);
   const current = imported.get(account.accountId);
   if (current) {
     const better = TIER_PRIORITY[classification.tier] - TIER_PRIORITY[current.tier]
@@ -65,11 +70,8 @@ function remember(account, classification, eventLabel, rank) {
       id: stored?.id || account.accountId,
       account_id: account.accountId,
       handle: account.username.replace(/ǃ+$/, '').trim(),
-      rarity: stored?.rarity || (classification.tier === 'elite' ? 'legendary' : classification.tier === 'contender' ? 'epic' : 'rare'),
-      price: stored?.price || (classification.tier === 'elite' ? 4000 : classification.tier === 'contender' ? 2800 : 1800),
       active: true,
       pro_tier: classification.tier,
-      last_seen_at: new Date().toISOString(),
       eligibility_note: `${classification.reason} · ${eventLabel}`.slice(0, 300),
     },
   });
@@ -166,7 +168,7 @@ for (const region of POOL_REGIONS) {
           const classification = classifyEntry({
             eventId: candidate.event.eventId, region, rank: entry.rank, flagToken: account.flagToken,
           });
-          if (classification) remember(account, classification, eventLabel, entry.rank);
+          if (classification) remember(account, classification, eventLabel, entry.rank, new Date(candidate.window.endTime).toISOString());
         }
       }
     }
@@ -179,10 +181,13 @@ for (const region of POOL_REGIONS) {
 // including 52 elite and several rank-1 finishes. Classifying the stored rows as well
 // costs no provider request and keeps membership decided in exactly one place: a
 // second writer would race this one and make the target meaningless.
-const pageAll = async (table, columns) => {
+// Offset paging is only stable over a total order: without one, rows can be skipped or repeated.
+const pageAll = async (table, columns, keys) => {
   const rows = [];
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await supabase.from(table).select(columns).range(from, from + 999);
+    let query = supabase.from(table).select(columns);
+    for (const key of keys) query = query.order(key);
+    const { data, error } = await query.range(from, from + 999);
     if (error) throw error;
     rows.push(...data);
     if (data.length < 1000) break;
@@ -190,12 +195,13 @@ const pageAll = async (table, columns) => {
   return rows;
 };
 
-const storedTournaments = new Map((await pageAll('tournaments', 'window_id, event_id, region'))
+const storedTournaments = new Map((await pageAll('tournaments', 'window_id, event_id, region, ends_at', ['window_id']))
+  .filter(row => Date.parse(row.ends_at) >= Date.now() - LOOKBACK_DAYS * 86400000)
   .map(row => [row.window_id, row]));
-const storedRanks = new Map((await pageAll('tournament_teams', 'window_id, team_id, rank'))
+const storedRanks = new Map((await pageAll('tournament_teams', 'window_id, team_id, rank', ['window_id', 'team_id']))
   .map(row => [`${row.window_id}:${row.team_id}`, row.rank]));
 let recoveredFromHistory = 0;
-for (const member of await pageAll('tournament_team_members', 'account_id, username, flag_token, window_id, team_id')) {
+for (const member of await pageAll('tournament_team_members', 'account_id, username, flag_token, window_id, team_id', ['window_id', 'team_id', 'account_id'])) {
   if (!member.account_id || !member.username) continue;
   const tournament = storedTournaments.get(member.window_id);
   const rank = storedRanks.get(`${member.window_id}:${member.team_id}`);
@@ -206,7 +212,7 @@ for (const member of await pageAll('tournament_team_members', 'account_id, usern
   if (!classification) continue;
   const before = imported.size;
   remember({ accountId: member.account_id, username: member.username, flagToken: member.flag_token },
-    classification, tournament.event_id, rank);
+    classification, tournament.event_id, rank, new Date(tournament.ends_at).toISOString());
   if (imported.size > before) recoveredFromHistory++;
 }
 
@@ -214,7 +220,8 @@ for (const member of await pageAll('tournament_team_members', 'account_id, usern
 // strict priority sort filled the whole budget with elite and contender and cut the
 // home cohort entirely, which is the opposite of what this pool exists for.
 const candidates = [...imported.values()];
-const players = selectPool(candidates, POOL_TARGET_SIZE).map(entry => entry.row);
+const players = selectPool(candidates, POOL_TARGET_SIZE)
+  .map(entry => ({ ...entry.row, last_seen_at: lastSeen.get(entry.row.account_id) }));
 const tierCounts = players.reduce((counts, row) => ({ ...counts, [row.pro_tier]: (counts[row.pro_tier] || 0) + 1 }), {});
 if (players.length > 10_000) throw new Error('Osirion player import exceeds record limit');
 
@@ -239,8 +246,20 @@ const keptWindows = new Set(keptResults.map(row => row.window_id));
 let deactivated = 0;
 let recoveredResults = 0;
 if (!dryRun && players.length) {
-  for (let index = 0; index < players.length; index += 500) {
-    const { error } = await supabase.from('players').upsert(players.slice(index, index + 500));
+  // Price and rarity belong to refresh_market_prices. Rewriting them from the snapshot
+  // taken at start reverted every reprice that landed during the crawl, without history.
+  const added = players.filter(row => !existingByAccount.has(row.account_id)).map(row => ({
+    ...row,
+    rarity: row.pro_tier === 'elite' ? 'legendary' : row.pro_tier === 'contender' ? 'epic' : 'rare',
+    price: row.pro_tier === 'elite' ? 4000 : row.pro_tier === 'contender' ? 2800 : 1800,
+  }));
+  const kept = players.filter(row => existingByAccount.has(row.account_id));
+  for (let index = 0; index < added.length; index += 500) {
+    const { error } = await supabase.from('players').upsert(added.slice(index, index + 500));
+    if (error) throw error;
+  }
+  for (let index = 0; index < kept.length; index += 500) {
+    const { error } = await supabase.rpc('update_pool_players', { rows: kept.slice(index, index + 500) });
     if (error) throw error;
   }
 

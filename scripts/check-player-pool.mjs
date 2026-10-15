@@ -11,6 +11,7 @@ import {
   isDisplayEvent,
   isHomeFlag,
   isLegacyPoolEntry,
+  isSafePrune,
   MAX_QUALIFYING_RANK,
   pagesForRankLimit,
   POOL_GRACE_DAYS,
@@ -184,5 +185,17 @@ assert.match(results, /from\('player_results'\)\.delete\(\)[\s\S]*\.in\('team_id
   'pruning a team must also remove its player results');
 assert.match(results, /from\('tournament_teams'\)\.delete\(\)[\s\S]*\.in\('team_id', batch\)/,
   'pruning a team must cascade its members and sessions');
+
+// A truncated provider response must not wipe a window: corrections displace a few teams.
+assert.equal(isSafePrune({ stored: 300, stale: 0 }), true);
+assert.equal(isSafePrune({ stored: 300, stale: 30 }), true, 'a correction of 10% is pruned');
+assert.equal(isSafePrune({ stored: 300, stale: 31 }), false, 'more than 10% looks truncated');
+assert.equal(isSafePrune({ stored: 300, stale: 200 }), false, 'a page-one-only response is not pruned');
+assert.equal(isSafePrune({ stored: 20, stale: 10 }), true, 'small windows tolerate ten displaced teams');
+assert.match(results, /isSafePrune\(\{ stored: storedTeamIds\.length, stale: staleTeamIds\.length \}\)/,
+  'the results sync must guard pruning');
+// Price and rarity belong to the repricer; the pool sync only seeds them for new players.
+assert.doesNotMatch(pool, /price: stored\?\.price/, 'the pool sync must not rewrite existing prices');
+assert.doesNotMatch(pool, /last_seen_at: new Date\(\)/, 'last_seen_at must be the window end, not the run time');
 
 console.log('check:pool OK');

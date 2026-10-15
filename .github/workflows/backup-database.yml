@@ -161,3 +161,23 @@ jobs:
           path: ${{ runner.temp }}/encrypted/
           retention-days: 14
           if-no-files-found: error
+
+  # Scheduled runs fail silently otherwise: a broken repricing went unnoticed for weeks.
+  report-failure:
+    needs: backup
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open an issue unless one is already open
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: "Scheduled workflow failing: ${{ github.workflow }}"
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$TITLE\" in:title" --json number --jq length)
+          if [ "$open" = "0" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body "First failing run: $RUN_URL"
+          fi
