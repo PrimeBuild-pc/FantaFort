@@ -161,13 +161,15 @@ async function upsert(table, rows) {
 async function pruneStaleTeams() {
   let pruned = 0;
   for (const windowId of prunableWindows) {
-    const currentTeamIds = new Set([...teams.values()]
-      .filter(team => team.window_id === windowId)
-      .map(team => team.team_id));
+    const currentTeams = [...teams.values()].filter(team => team.window_id === windowId);
+    const currentTeamIds = new Set(currentTeams.map(team => team.team_id));
+    // Only teams inside the depth this run fetched can have been displaced; deeper ones
+    // (stored by the pool crawl) are simply not re-read here and must not be deleted.
+    const fetchedDepth = Math.max(...currentTeams.map(team => team.rank));
     const storedTeamIds = [];
     for (let from = 0; ; from += 1000) {
       const { data, error } = await supabase.from('tournament_teams').select('team_id')
-        .eq('window_id', windowId).order('team_id').range(from, from + 999);
+        .eq('window_id', windowId).lte('rank', fetchedDepth).order('team_id').range(from, from + 999);
       if (error) throw error;
       storedTeamIds.push(...data.map(team => team.team_id));
       if (data.length < 1000) break;
