@@ -27,7 +27,6 @@ const playerByAccount = new Map(players.map(player => [player.account_id, player
 const tournamentRows = new Map();
 const teams = new Map();
 const members = new Map();
-const sessions = new Map();
 const results = new Map();
 const largestTeams = new Map();
 const prunableWindows = new Set();
@@ -90,11 +89,19 @@ for (const region of POOL_REGIONS) {
         if (!teamId) continue;
         const teamSize = Math.min(4, Math.max(expectedTeamSize, visiblePlayers.length));
         largestTeam = Math.max(largestTeam, teamSize);
+        // Per-match history is not stored (it filled the database); the team totals are.
+        const history = entry.sessionHistory || [];
+        const totals = {
+          matches:history.length,
+          wins:history.filter(session => session.trackedStats?.VICTORY_ROYALE_STAT > 0).length,
+          team_eliminations:history.reduce((sum, session) => sum + (session.trackedStats?.TEAM_ELIMS_STAT_INDEX || 0), 0),
+        };
         teams.set(`${location.leaderboardEventWindowId}:${teamId}`, {
           window_id:location.leaderboardEventWindowId,
           team_id:teamId,
           rank:entry.rank,
           points:entry.pointsEarned,
+          ...totals,
           percentile:entry.percentile ?? null,
           updated_at:leaderboard.updatedAt || new Date().toISOString(),
         });
@@ -111,7 +118,6 @@ for (const region of POOL_REGIONS) {
           });
           const playerId = playerByAccount.get(account.accountId);
           if (!playerId) continue;
-          const history = entry.sessionHistory || [];
           results.set(`${location.leaderboardEventWindowId}:${playerId}`, {
             window_id:location.leaderboardEventWindowId,
             player_id:playerId,
@@ -119,27 +125,9 @@ for (const region of POOL_REGIONS) {
             team_size:teamSize,
             rank:entry.rank,
             points:entry.pointsEarned,
-            matches:history.length,
-            wins:history.filter(session => session.trackedStats?.VICTORY_ROYALE_STAT > 0).length,
-            team_eliminations:history.reduce((sum, session) => sum + (session.trackedStats?.TEAM_ELIMS_STAT_INDEX || 0), 0),
+            ...totals,
             percentile:entry.percentile ?? null,
             updated_at:leaderboard.updatedAt || new Date().toISOString(),
-          });
-        }
-
-        for (const session of entry.sessionHistory || []) {
-          if (!session.sessionId) continue;
-          const stats = session.trackedStats || {};
-          sessions.set(`${location.leaderboardEventWindowId}:${teamId}:${session.sessionId}`, {
-            window_id:location.leaderboardEventWindowId,
-            team_id:teamId,
-            session_id:session.sessionId,
-            ended_at:session.endTime || null,
-            placement:stats.PLACEMENT_STAT_INDEX || null,
-            team_eliminations:stats.TEAM_ELIMS_STAT_INDEX || 0,
-            victory:stats.VICTORY_ROYALE_STAT > 0,
-            time_alive:stats.TIME_ALIVE_STAT || null,
-            tracked_stats:stats,
           });
         }
       }
@@ -159,7 +147,7 @@ for (const region of POOL_REGIONS) {
 
 for (const [label, rows, limit] of [
   ['tournaments', tournamentRows, 2_000], ['teams', teams, 20_000], ['members', members, 80_000],
-  ['sessions', sessions, 100_000], ['results', results, 20_000],
+  ['results', results, 20_000],
 ]) if (rows.size > limit) throw new Error(`Osirion ${label} exceed record limit`);
 
 async function upsert(table, rows) {
@@ -207,7 +195,7 @@ async function pruneStaleTeams() {
 // Each phase announces itself: a bare Postgres error in the workflow log otherwise names no step.
 for (const [table, rows] of [
   ['tournaments', tournamentRows], ['tournament_teams', teams], ['tournament_team_members', members],
-  ['tournament_sessions', sessions], ['player_results', results],
+  ['player_results', results],
 ]) {
   console.log(`Upserting ${rows.size} ${table} rows.`);
   await upsert(table, rows);
@@ -223,4 +211,4 @@ for (const [windowId, largestTeam] of largestTeams) {
 console.log('Repricing the market.');
 const { data: repriced, error:priceError } = await supabase.rpc('refresh_market_prices');
 if (priceError) throw priceError;
-console.log(`Synced ${results.size} player results and ${sessions.size} sessions; repriced ${repriced} players.`);
+console.log(`Synced ${results.size} player results across ${teams.size} teams; repriced ${repriced} players.`);
