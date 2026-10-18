@@ -198,4 +198,5 @@ assert.match(results, /isSafePrune\(\{ stored: storedTeamIds\.length, stale: sta
 assert.doesNotMatch(pool, /price: stored\?\.price/, 'the pool sync must not rewrite existing prices');
 assert.doesNotMatch(pool, /last_seen_at: new Date\(\)/, 'last_seen_at must be the window end, not the run time');
 
+assert.match(results, /\.lte\('rank', fetchedDepth\)/, 'pruning must only consider teams inside the fetched depth');
 console.log('check:pool OK');
