@@ -28,7 +28,7 @@
     "sync:results": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/sync-fortnite.mjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.117.3",
+    "@supabase/supabase-js": "^2.118.0",
     "next": "^16.4.2",
     "react": "19.3.0",
     "react-dom": "19.3.0"
