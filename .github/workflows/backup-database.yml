@@ -48,21 +48,16 @@ jobs:
             sed -E 's#(postgres(ql)?://)[^[:space:]@]*@#\1[REDACTED]@#g; s/password=[^[:space:]&]+/password=[REDACTED]/gi'
           }
 
-          # A project that was deleted or never provisioned must not block the
-          # remaining backups: warn and skip it instead of failing the job.
-          project_exists() {
-            local ref="$1" status
-            status=$(curl -sS -o /dev/null -w '%{http_code}' \
+          # A deleted or paused project must not block the remaining backups:
+          # warn and skip it instead of failing the job. The Management API
+          # still returns 200 for paused projects, but their database query
+          # endpoint returns 400, so the project status is what matters here.
+          project_status() {
+            local ref="$1"
+            curl -sS --fail-with-body \
               "https://api.supabase.com/v1/projects/${ref}" \
-              -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}")
-            case "$status" in
-              200) return 0 ;;
-              404) return 1 ;;
-              *)
-                echo "::error::Supabase Management API returned HTTP ${status} while checking ${ref}" >&2
-                exit 1
-                ;;
-            esac
+              -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+              | jq -r '.status // "UNKNOWN"'
           }
 
           # Runs SQL via the Supabase Management API so cleanup never needs a
@@ -162,8 +157,8 @@ jobs:
             if [ "$BACKUP_ENVIRONMENT_FILTER" != "all" ] && [ "$BACKUP_ENVIRONMENT_FILTER" != "$environment" ]; then
               continue
             fi
-            if ! project_exists "$ref"; then
-              echo "::warning::skipping ${environment} (${ref}): Supabase project not found" >&2
+            if ! project_status "$ref" | grep -Eq '^ACTIVE_(HEALTHY|UNHEALTHY)$'; then
+              echo "::warning::skipping ${environment} (${ref}): Supabase project is not active" >&2
               continue
             fi
             dump_environment "$environment" "$ref"
