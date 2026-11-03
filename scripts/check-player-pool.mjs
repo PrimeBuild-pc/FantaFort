@@ -68,6 +68,8 @@ for (const eventId of ['epicgames_S41_FNCSDivisionalCup_Division2_EU', 'epicgame
   assert.ok(classifyEntry({ eventId, region: 'EU', rank: 20 }), `${eventId} must recruit`);
 }
 assert.equal(isCompetitiveEvent('epicgames_S41_FNCSDivisionalCup_Division4_EU'), false, 'Division 4 is out of scope');
+assert.equal(isCompetitiveEvent('epicgames_S42_ChampionTealKnightFNCSCup_EU'), false,
+  'the cosmetic Champion Teal Knight cup is not an FNCS professional event');
 
 // Mobile stays out of recruitment, scoring and the public listing together.
 for (const eventId of ['epicgames_S40_MobileSeriesApr_EU', 'epicgames_S40_BakMobileCup_NAC']) {
