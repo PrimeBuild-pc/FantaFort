@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from 'react';
+/* eslint-disable react-hooks/set-state-in-effect */
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import FeedbackNotice from '@/components/FeedbackNotice';
@@ -8,9 +9,10 @@ import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
 import { LeagueSettings } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
+import { WEEKEND_PRESET } from '@/lib/weekend';
 
 type InvitePreview = { name:string; members:number; economy_mode:'demo'|'account_stake'; entry_stake:number; initial_budget:number; roster_size:number; draft_mode:'market'|'auction'; duration_days:number };
-const defaults: LeagueSettings = { budget: 10000, rosterSize: 3, marketHours: 24, durationDays: 30, scoringMode: 'classic', economyMode: 'demo', entryStake: 0, draftMode: 'market' };
+const defaults: LeagueSettings = { budget: 10000, rosterSize: 3, marketHours: 24, durationDays: 30, scoringMode: 'formation', economyMode: 'demo', entryStake: 0, draftMode: 'market' };
 
 export default function LeaguesPage() {
   const { leagues, activeLeagueId, userId, createLeague, joinLeague, startLeague, leaveLeague, cancelLeague, selectLeague } = useGame();
@@ -20,20 +22,52 @@ export default function LeaguesPage() {
   const [code, setCode] = useState('');
   const [invitePreview, setInvitePreview] = useState<InvitePreview>();
   const [message, setMessage] = useState('');
+  const joinApplied = useRef(false);
+  const presetApplied = useRef(false);
 
   const run = async (action: () => Promise<string | null>) => { setMessage(''); const error = await action(); setMessage(error || '✓'); };
   const previewInvite = async (event: FormEvent) => {
     event.preventDefault(); if (!supabase) return;
     setMessage(''); const { data, error } = await supabase.rpc('preview_league_invite', { code });
-    if (error || !data?.[0]) return setMessage('Invite unavailable');
+    if (error || !data?.[0]) return setMessage(t('inviteUnavailable'));
     setInvitePreview(data[0] as InvitePreview);
   };
   const confirmJoin = async () => { await run(() => joinLeague(code)); setCode(''); setInvitePreview(undefined); };
+  const shareInvite = async (event: { stopPropagation: () => void }, inviteCode: string) => {
+    event.stopPropagation();
+    const link = `${window.location.origin}/leagues?join=${inviteCode}`;
+    if (navigator.share) {
+      try { await navigator.share({ url: link }); return; } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+      }
+    }
+    await navigator.clipboard.writeText(link);
+    setMessage(t('inviteLinkCopied'));
+  };
+  useEffect(() => {
+    if (joinApplied.current) return;
+    const join = new URLSearchParams(window.location.search).get('join') || '';
+    if (!/^[A-Fa-f0-9]{16}$/.test(join) || !supabase) return;
+    joinApplied.current = true;
+    const normalized = join.toUpperCase();
+    setCode(normalized);
+    supabase.rpc('preview_league_invite', { code: normalized }).then(({ data, error }) => {
+      if (error || !data?.[0]) return setMessage(t('inviteUnavailable'));
+      setInvitePreview(data[0] as InvitePreview);
+    });
+  }, [t]);
+  useEffect(() => {
+    if (presetApplied.current) return;
+    if (new URLSearchParams(window.location.search).get('preset') !== 'weekend') return;
+    presetApplied.current = true;
+    setSettings(WEEKEND_PRESET);
+    setLeagueName(current => current || t('weekendLeague'));
+  }, [t]);
   return <div className="app-shell"><Header /><main className="container page-content">
-    <div className="page-title"><div className="eyebrow">SOCIAL HUB</div><h1>{t('leagues')}</h1><p>{t('leagueIntro')}</p></div>
+    <div className="page-title"><div className="eyebrow">{t('socialHub')}</div><h1>{t('leagues')}</h1><p>{t('leagueIntro')}</p></div>
     <FeedbackNotice message={message}/>
     <div className="hub-grid">
-      <section className="epic-panel"><h2>{t('createLeague')}</h2><form onSubmit={event => { event.preventDefault(); run(() => createLeague(leagueName, settings)); setLeagueName(''); }}>
+      <section className="epic-panel"><h2>{t('createLeague')}</h2><button type="button" className="epic-button secondary" onClick={() => setSettings(WEEKEND_PRESET)}>{t('weekendLeague')}</button><p className="form-hint">{t('weekendLeagueHelp')}</p><form onSubmit={event => { event.preventDefault(); run(() => createLeague(leagueName, settings)); setLeagueName(''); }}>
         <label>{t('leagueName')}<input value={leagueName} onChange={event => setLeagueName(event.target.value)} minLength={3} required /></label>
         <div className="settings-grid">
           <label>{t('initialBudget')}<input type="number" min="6000" max="30000" step="500" value={settings.budget} onChange={event => setSettings(value => ({ ...value, budget: Number(event.target.value) }))} /></label>
@@ -42,7 +76,7 @@ export default function LeaguesPage() {
           <label>{t('leagueDays')}<input type="number" min="1" max="365" value={settings.durationDays} onChange={event => setSettings(value => ({ ...value, durationDays: Number(event.target.value) }))} /></label>
         </div>
         <label>{t('scoringMode')}<select value={settings.scoringMode} onChange={event => setSettings(value => ({ ...value, scoringMode: event.target.value as LeagueSettings['scoringMode'] }))}>
-          <option value="classic">{t('classicMode')}</option><option value="balanced">{t('balancedMode')}</option><option value="formation">{t('formationMode')}</option>
+          <option value="formation">{t('formationMode')} · {t('recommended')}</option><option value="balanced">{t('balancedMode')}</option><option value="classic">{t('classicMode')}</option>
         </select></label>
         <div className="settings-grid">
           <label>{t('economyMode')}<select value={settings.economyMode} onChange={event => setSettings(value => ({ ...value, economyMode: event.target.value as LeagueSettings['economyMode'], entryStake: event.target.value === 'demo' ? 0 : 500 }))}><option value="demo">{t('demoEconomy')}</option><option value="account_stake">{t('stakeEconomy')}</option></select></label>
@@ -59,7 +93,7 @@ export default function LeaguesPage() {
 
     <section className="section-block"><h2>{t('leagues')}</h2><div className="league-grid">{leagues.map(league => <article className={`league-card ${league.id === activeLeagueId ? 'selected' : ''}`} key={league.id} onClick={() => selectLeague(league.id)}>
       <div><span className={`status ${league.status}`}>{t(league.status)}</span><h3>{league.name}</h3><p>{league.members} {t('members')} · {league.rosterSize} {t('roster')} · {new Intl.NumberFormat(locale).format(league.budget)} C</p><small>{t(`${league.scoringMode}Mode` as 'classicMode')} · {league.draftMode === 'auction' ? t('auctionDraft') : t('fixedMarket')} · {league.economyMode === 'account_stake' ? `${league.entryStake} C ${t('entryStake')}` : t('demoEconomy')}</small></div>
-      <div className="invite-code"><small>{t('inviteCode')}</small><b>{league.inviteCode}</b><button onClick={event => { event.stopPropagation(); navigator.clipboard.writeText(league.inviteCode); }}>{t('copyInvite')}</button></div>
+      <div className="invite-code"><small>{t('inviteCode')}</small><b>{league.inviteCode}</b><button onClick={event => { event.stopPropagation(); navigator.clipboard.writeText(league.inviteCode); }}>{t('copyInvite')}</button><button onClick={event => shareInvite(event, league.inviteCode)}>{t('copyInviteLink')}</button></div>
       <div className="league-actions"><Link className="epic-button secondary" href={`/leagues/${league.id}`}>{t('liveDashboard')}</Link>{league.ownerId === userId && league.status === 'lobby' && <><button className="epic-button" onClick={event => { event.stopPropagation(); run(() => startLeague(league.id)); }}>{t('startLeague')}</button><button className="link-button danger" onClick={event => { event.stopPropagation(); run(() => cancelLeague(league.id)); }}>{t('cancelLeague')}</button></>}{league.ownerId !== userId && (league.status === 'lobby' || (league.status === 'active' && league.economyMode === 'demo')) && <button className="link-button danger" onClick={event => { event.stopPropagation(); if (league.status === 'lobby' || window.confirm(t('confirmLeaveActive'))) run(() => leaveLeague(league.id)); }}>{t('leaveLeague')}</button>}</div>
     </article>)}</div></section>
 

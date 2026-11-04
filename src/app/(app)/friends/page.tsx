@@ -49,7 +49,7 @@ export default function FriendsPage() {
 
   const online = friends.filter(friend => !friend.pending && friend.online).length;
   return <div className="app-shell"><Header /><main className="container page-content">
-    <div className="page-title"><div className="eyebrow">SOCIAL HUB</div><h1>{t('friends')}</h1><p>{t('friendsOnline').replace('{count}', String(online))}</p></div>
+    <div className="page-title"><div className="eyebrow">{t('socialHub')}</div><h1>{t('friends')}</h1><p>{t('friendsOnline').replace('{count}', String(online))}</p></div>
     <FeedbackNotice message={message}/>
 
     {invites.length > 0 && <section className="epic-panel invite-panel"><h2>{t('leagueInvites')}</h2>{invites.map(invite => <article key={invite.id}><div><strong>{invite.league_name}</strong><span>{t('invitedBy').replace('{username}', invite.inviter)}</span></div><button className="epic-button" onClick={() => respondInvite(invite.id, true)}>{t('accept')}</button><button className="link-button danger" onClick={() => respondInvite(invite.id, false)}>{t('reject')}</button></article>)}</section>}

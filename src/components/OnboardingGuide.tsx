@@ -14,27 +14,27 @@ type Step = { eyebrow: string; title: string; body: string; where: string };
 const copy: Record<Locale, { skip: string; back: string; next: string; start: string; guide: string; where: string; steps: Step[] }> = {
   en: { skip:'Skip guide', back:'Back', next:'Next', start:'Create or join a league', guide:'Open the complete guide', where:'Where to find it', steps:[
     {eyebrow:'STEP 1',title:'Create or join a league',body:'Start a private league or enter an invite code from a friend. League settings define the budget, roster and scoring.',where:'Leagues → Create league or invite code.'},
-    {eyebrow:'STEP 2',title:'Draft your roster',body:'Recruit competitive Fortnite players with virtual coins before their tournament begins. Player cards show recent form and teammates.',where:'Market → choose a player. My squad → review your roster.'},
+    {eyebrow:'STEP 2',title:'Draft your roster',body:'Recruit competitive Fortnite players with virtual league coins before their tournament begins. Player cards show recent form and teammates. The personal portfolio is a separate table.',where:'Home → the next window. Market → the league roster. Trading → the personal portfolio.'},
     {eyebrow:'STEP 3',title:'Follow the competition',body:'Real tournament results update points and standings. Late signings never receive retroactive points.',where:'League dashboard → live standings. Tournaments → match details.'},
   ]},
   it: { skip:'Salta guida', back:'Indietro', next:'Avanti', start:'Crea o entra in una lega', guide:'Apri la guida completa', where:'Dove trovarlo', steps:[
     {eyebrow:'PASSO 1',title:'Crea o entra in una lega',body:'Avvia una lega privata oppure inserisci il codice ricevuto da un amico. Le impostazioni definiscono budget, rosa e punteggio.',where:'Leghe → Crea lega oppure codice invito.'},
-    {eyebrow:'PASSO 2',title:'Componi la tua rosa',body:'Acquista player competitivi con coin virtuali prima dell’inizio del torneo. Le carte mostrano forma recente e compagni.',where:'Mercato → scegli un player. La mia rosa → controlla gli acquisti.'},
+    {eyebrow:'PASSO 2',title:'Componi la tua rosa',body:'Acquista player competitivi con i coin della lega prima dell’inizio del torneo. Le carte mostrano forma recente e compagni. Il portafoglio personale è un tavolo a parte.',where:'Home → la prossima finestra. Mercato → la rosa di lega. Trading → il portafoglio personale.'},
     {eyebrow:'PASSO 3',title:'Segui la competizione',body:'I risultati reali aggiornano punti e classifica. Gli acquisti tardivi non ricevono mai punti retroattivi.',where:'Dashboard della lega → classifica live. Tornei → dettagli delle partite.'},
   ]},
   es: { skip:'Saltar guía', back:'Atrás', next:'Siguiente', start:'Crear o unirse a una liga', guide:'Abrir la guía completa', where:'Dónde encontrarlo', steps:[
     {eyebrow:'PASO 1',title:'Crea o únete a una liga',body:'Inicia una liga privada o introduce la invitación de un amigo. La configuración define presupuesto, plantilla y puntuación.',where:'Ligas → Crear liga o código de invitación.'},
-    {eyebrow:'PASO 2',title:'Crea tu plantilla',body:'Ficha jugadores con monedas virtuales antes del torneo. Las cartas muestran forma reciente y compañeros.',where:'Mercado → elige un jugador. Mi plantilla → revisa tus fichajes.'},
+    {eyebrow:'PASO 2',title:'Crea tu plantilla',body:'Ficha jugadores con las monedas de la liga antes del torneo. Las cartas muestran forma reciente y compañeros. La cartera personal es otra mesa.',where:'Inicio → la próxima ventana. Mercado → la plantilla de liga. Trading → la cartera personal.'},
     {eyebrow:'PASO 3',title:'Sigue la competición',body:'Los resultados reales actualizan puntos y clasificación. No hay puntos retroactivos.',where:'Panel de liga → clasificación. Torneos → detalles de partidas.'},
   ]},
   de: { skip:'Anleitung überspringen', back:'Zurück', next:'Weiter', start:'Liga erstellen oder beitreten', guide:'Vollständige Anleitung öffnen', where:'Hier findest du es', steps:[
     {eyebrow:'SCHRITT 1',title:'Liga erstellen oder beitreten',body:'Starte eine private Liga oder nutze den Einladungscode eines Freundes. Die Einstellungen bestimmen Budget, Kader und Wertung.',where:'Ligen → Erstellen oder Einladungscode.'},
-    {eyebrow:'SCHRITT 2',title:'Kader zusammenstellen',body:'Verpflichte Profis vor Turnierbeginn mit virtuellen Coins. Spielerkarten zeigen Form und letzte Mitspieler.',where:'Markt → Spieler wählen. Mein Team → Kader prüfen.'},
+    {eyebrow:'SCHRITT 2',title:'Kader zusammenstellen',body:'Verpflichte Profis vor Turnierbeginn mit Liga-Coins. Spielerkarten zeigen Form und letzte Mitspieler. Das persönliche Portfolio ist ein eigener Tisch.',where:'Start → das nächste Fenster. Markt → der Ligakader. Trading → das persönliche Portfolio.'},
     {eyebrow:'SCHRITT 3',title:'Wettbewerb verfolgen',body:'Echte Ergebnisse aktualisieren Punkte und Tabelle. Späte Transfers erhalten keine rückwirkenden Punkte.',where:'Liga-Dashboard → Tabelle. Turniere → Spieldetails.'},
   ]},
   fr: { skip:'Passer le guide', back:'Retour', next:'Suivant', start:'Créer ou rejoindre une ligue', guide:'Ouvrir le guide complet', where:'Où le trouver', steps:[
     {eyebrow:'ÉTAPE 1',title:'Créez ou rejoignez une ligue',body:'Lancez une ligue privée ou saisissez l’invitation d’un ami. Les réglages définissent budget, équipe et score.',where:'Ligues → Créer ou saisir un code.'},
-    {eyebrow:'ÉTAPE 2',title:'Composez votre équipe',body:'Recrutez des joueurs avec des coins virtuels avant le tournoi. Les cartes montrent forme et coéquipiers récents.',where:'Marché → choisir un joueur. Mon équipe → vérifier la sélection.'},
+    {eyebrow:'ÉTAPE 2',title:'Composez votre équipe',body:'Recrutez des joueurs avec les coins de la ligue avant le tournoi. Les cartes montrent forme et coéquipiers récents. Le portefeuille personnel est une autre table.',where:'Accueil → la prochaine fenêtre. Marché → l’équipe de ligue. Trading → le portefeuille personnel.'},
     {eyebrow:'ÉTAPE 3',title:'Suivez la compétition',body:'Les vrais résultats actualisent points et classement. Aucun point rétroactif pour un recrutement tardif.',where:'Tableau de ligue → classement. Tournois → détails des parties.'},
   ]},
 };

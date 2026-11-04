@@ -1,95 +1,160 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
-import PlayerCard from '@/components/PlayerCard';
-import PlayerCompare from '@/components/PlayerCompare';
 import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
-import { MARKET_PAGE_SIZE, searchKnownAccounts, searchMarketPlayers, type KnownAccount } from '@/lib/market-players';
 import { supabase } from '@/lib/supabase';
-import type { Player } from '@/lib/types';
+import { focusWindow, formatRemaining, windowPhase, type WindowClock } from '@/lib/weekend';
 
-export default function DashboardPage() {
-  const { leagues, activeLeagueId } = useGame();
-  const { t } = useLocale();
-  const [query, setQuery] = useState('');
-  const [page, setPage] = useState(1);
-  const [visible, setVisible] = useState<Player[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
+type WindowRow = WindowClock & { windowId: string; name: string; region: string; syncedAt: string | null };
+type NextStep = 'create' | 'fill' | 'invite' | 'clash' | 'recap' | 'wait';
+
+const REGIONS = ['EU', 'NAC', 'NAW'];
+
+export default function HomePage() {
+  const { team, coins, leagues, activeLeagueId, selectLeague, loading, previewing } = useGame();
+  const { locale, t } = useLocale();
+  const [rows, setRows] = useState<WindowRow[]>([]);
+  const [now, setNow] = useState(() => Date.now());
   const [failed, setFailed] = useState(false);
-  const [missing, setMissing] = useState<KnownAccount[]>([]);
-  const [compareMode, setCompareMode] = useState(false);
-  const [compareSelection, setCompareSelection] = useState<Player[]>([]);
-  const toggleCompare = (player: Player) => setCompareSelection(current => {
-    if (current.some(item => item.id === player.id)) return current.filter(item => item.id !== player.id);
-    return current.length >= 2 ? [current[1], player] : [...current, player];
+  const [copied, setCopied] = useState(false);
+  const league = leagues.find(item => item.id === activeLeagueId);
+  const slots = league?.rosterSize || 3;
+  const openSlots = Math.max(0, slots - team.length);
+  const scoped = rows.filter(row => {
+    const start = Date.parse(row.startsAt);
+    if (league?.startsAt && start < Date.parse(league.startsAt)) return false;
+    if (league?.endsAt && start > Date.parse(league.endsAt)) return false;
+    return true;
   });
+  const focus = focusWindow(scoped, now);
+  const phase = focus ? windowPhase(focus, now) : null;
+  const marketOpen = Boolean(league?.status === 'active' && league.marketClosesAt && Date.parse(league.marketClosesAt) > now);
+  const marketCloses = marketOpen && league?.marketClosesAt
+    ? `${t('closesIn')} ${formatRemaining(league.marketClosesAt, now)}`
+    : league ? t(league.status === 'active' ? 'marketClosed' : league.status) : null;
+  const next: NextStep = !league ? 'create'
+    : phase === 'live' ? 'clash'
+    : phase === 'completed' ? 'recap'
+    : loading ? 'wait'
+    : league.status === 'lobby' || league.members < 2 ? 'invite'
+    : team.length < slots && marketOpen ? 'fill'
+    : marketOpen ? 'invite'
+    : 'wait';
+  const nowCopy = t(next === 'create' ? 'homeNowCreate' : next === 'fill' ? 'homeNowFill' : next === 'invite' ? 'homeNowInvite' : next === 'clash' ? 'homeNowClash' : next === 'recap' ? 'homeNowRecap' : 'homeNowWait')
+    .replace('{open}', String(openSlots));
 
-  // Debounced so typing does not fire a query per keystroke.
+  const shareInvite = async () => {
+    if (!league) return;
+    const link = `${window.location.origin}/leagues?join=${league.inviteCode}`;
+    if (navigator.share) {
+      try { await navigator.share({ title: league.name, url: link }); return; }
+      catch (error) { if (error instanceof DOMException && error.name === 'AbortError') return; }
+    }
+    await navigator.clipboard.writeText(link);
+    setCopied(true);
+  };
+
   useEffect(() => {
     if (!supabase) return;
-    const client = supabase;
     let cancelled = false;
-    setLoading(true);
-    const timer = setTimeout(async () => {
-      try {
-        const result = await searchMarketPlayers(client, { search: query, page });
+    const load = () => supabase!.from('tournaments')
+      .select('window_id,name,region,starts_at,ends_at,synced_at')
+      .in('region', REGIONS)
+      .gte('ends_at', new Date(Date.now() - 7 * 86400000).toISOString())
+      .order('starts_at')
+      .limit(80)
+      .then(({ data, error }) => {
         if (cancelled) return;
-        setVisible(result.players); setTotal(result.total); setFailed(false);
-        // Only when the market itself has nothing: players we have seen compete but
-        // do not carry. Cached, misses included, so repeated typing stays cheap.
-        setMissing(query.trim().length >= 2 && !result.total
-          ? await searchKnownAccounts(client, query).catch(() => [])
-          : []);
-      } catch {
-        if (!cancelled) { setVisible([]); setTotal(0); setMissing([]); setFailed(true); }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }, query ? 250 : 0);
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [query, page]);
-
-  const totalPages = Math.max(1, Math.ceil(total / MARKET_PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const firstPageButton = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
-  const pageButtons = Array.from({ length: Math.min(5, totalPages) }, (_, index) => firstPageButton + index);
-  const activeLeague = leagues.find(league => league.id === activeLeagueId);
-  const changePage = (nextPage:number) => { setPage(nextPage); document.querySelector('.market-toolbar')?.scrollIntoView({ behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth' }); };
+        if (error) { setFailed(true); return; }
+        setFailed(false);
+        setRows((data || []).map(row => ({
+          windowId: row.window_id, name: row.name, region: row.region,
+          startsAt: row.starts_at, endsAt: row.ends_at, syncedAt: row.synced_at,
+        })));
+      });
+    load();
+    const refresh = setInterval(() => { if (document.visibilityState === 'visible') load(); }, 300000);
+    const tick = setInterval(() => setNow(Date.now()), 30000);
+    return () => { cancelled = true; clearInterval(refresh); clearInterval(tick); };
+  }, []);
 
   return <div className="app-shell">
     <Header />
     <main className="container page-content">
+      {previewing && <p className="notice" role="status">{t('devPreviewNote')}</p>}
       <section className="market-hero">
-        <div><div className="eyebrow">FORTNITE FANTASY</div><h1>{t('itemShop')}</h1><p>{t('choosePlayers')}</p></div>
-        <div className="hero-status">
-          {activeLeague ? <><small>{t('activeLeague')}</small><strong>{activeLeague.name}</strong><span className={`status ${activeLeague.status}`}>{t(activeLeague.status)}</span></> : <><small>{t('trainingMode')}</small><strong>{t('noLeagueSelected')}</strong><Link href="/leagues">{t('createLeague')} →</Link></>}
+        <div>
+          <div className="eyebrow">{t('homeEyebrow')}</div>
+          <h1>{t('homeTitle')}</h1>
+          <p>{t('homeLead')}</p>
+        </div>
+        <div className="hero-status home-next">
+          <small>{league ? league.name : t('weekendLeague')}</small>
+          <strong>{nowCopy}</strong>
+          <div className="home-actions">
+            {next === 'create' && <>
+              <Link className="epic-button" href="/leagues?preset=weekend">{t('homeCreate')}</Link>
+              <Link className="epic-button secondary" href="/leagues">{t('homeHaveInvite')}</Link>
+            </>}
+            {next === 'fill' && <Link className="epic-button" href="/market">{t('homeFill')}</Link>}
+            {next === 'invite' && <button className="epic-button" type="button" onClick={shareInvite}>{copied ? t('inviteLinkCopied') : t('homeInviteFriend')}</button>}
+            {next === 'clash' && league && <Link className="epic-button" href={`/leagues/${league.id}`}>{t('homeWatchClash')}</Link>}
+            {next === 'recap' && league && <Link className="epic-button" href={`/leagues/${league.id}`}>{t('homeReadRecap')}</Link>}
+            {next === 'wait' && league && <Link className="epic-button" href={`/leagues/${league.id}`}>{t('goToTable')}</Link>}
+            {next !== 'create' && next !== 'invite' && league && <button className="epic-button secondary" type="button" onClick={shareInvite}>{copied ? t('inviteLinkCopied') : t('homeInviteFriend')}</button>}
+          </div>
         </div>
       </section>
-      <div className="market-toolbar">
-        <label className="search-box"><span>⌕</span><input value={query} aria-label={t('searchPlayers')} maxLength={80} onChange={event => { setQuery(event.target.value); setPage(1); }} placeholder={t('searchPlayers')} /></label>
-        <button type="button" className={`compare-toggle${compareMode ? ' on' : ''}`} aria-pressed={compareMode} onClick={() => { setCompareMode(value => !value); setCompareSelection([]); }}>{t('compare')}</button>
-        <span aria-live="polite">{total} PROS · {t('page')} {currentPage}/{totalPages}</span>
+
+      <ol className="home-steps">
+        <li><b>1</b><span>{t('homeStepPick')}</span></li>
+        <li><b>2</b><span>{t('homeStepWindow')}</span></li>
+        <li><b>3</b><span>{t('homeStepInvite')}</span></li>
+      </ol>
+
+      {league && <div className="home-invite">
+        {next !== 'invite' && <p>{t('homeNowInvite')}</p>}
+        <div>
+          <code>{league.inviteCode}</code>
+          <button type="button" className="epic-button secondary" onClick={shareInvite}>{copied ? t('inviteLinkCopied') : t('copyInviteLink')}</button>
+        </div>
+      </div>}
+
+      {leagues.length > 1 && <label className="home-league">{t('activeLeague')}
+        <select aria-label={t('activeLeague')} value={activeLeagueId || ''} onChange={event => selectLeague(event.target.value)}>
+          {leagues.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+      </label>}
+
+      <div className="home-grid">
+        <section className="epic-panel">
+          <div className="eyebrow">{t('nextWindow')}</div>
+          {failed ? <p className="notice error" role="alert">{t('noPlayers')}</p>
+            : focus ? <>
+              <h2>{focus.name}</h2>
+              <p>{focus.region} · {phase === 'live' ? t('clashLive') : phase === 'upcoming' ? t('upcoming') : t('clashRecap')}{phase === 'upcoming' ? ` · ${formatRemaining(focus.startsAt, now)}` : phase === 'live' ? ` · ${formatRemaining(focus.endsAt, now)}` : ''}</p>
+              <p>{t('dataAsOf').replace('{time}', focus.syncedAt ? new Date(focus.syncedAt).toLocaleString(locale) : '—')}</p>
+            </> : <p className="notice">{t('noWindow')}</p>}
+          <div className="home-actions">
+            <Link href="/trading">{t('accountPortfolio')}</Link>
+          </div>
+        </section>
+        <section className="epic-panel">
+          <div className="window-facts">
+            <div><small>{t('roster')}</small><b>{loading ? '—' : t('slots').replace('{filled}', String(team.length)).replace('{total}', String(slots))}</b></div>
+            <div><small>{t('leagueCoins')}</small><b>{league ? `${new Intl.NumberFormat(locale).format(coins)} C` : '—'}</b></div>
+            <div><small>{t('marketStatus')}</small><b>{marketCloses || '—'}</b></div>
+          </div>
+          <ul className="slot-list">
+            {team.map(player => <li key={player.id}><strong>{player.handle}</strong><span>{new Intl.NumberFormat(locale).format(player.price)} C</span></li>)}
+            {Array.from({ length: Math.max(0, slots - team.length) }, (_, index) => <li className="open" key={`open-${index}`}>{league ? <Link href="/market">{t('openSlot')}</Link> : <span>{t('openSlot')}</span>}</li>)}
+          </ul>
+          {!league && <p className="notice">{t('needsLeague')}</p>}
+        </section>
       </div>
-      {compareMode && <p className="form-hint">{t('compareHint')}</p>}
-      {loading ? <div className="player-grid" aria-busy="true" aria-label={t('loading')}>{Array.from({ length: 12 }, (_, index) => <div className="player-card-skeleton" key={index} />)}</div>
-        : failed ? <p className="notice error" role="alert">{t('noPlayers')}</p>
-        : visible.length ? <><div className="player-grid">{visible.map(player => <PlayerCard key={player.id} player={player} compareMode={compareMode} compareSelected={compareSelection.some(item => item.id === player.id)} onToggleCompare={toggleCompare} />)}</div>
-          {compareMode && <PlayerCompare players={compareSelection} />}
-          <nav className="market-pagination" aria-label={t('marketPages')}><button disabled={currentPage === 1} onClick={() => changePage(currentPage - 1)}>‹ <span>{t('previousPage')}</span></button>{pageButtons.map(number => <button className={number === currentPage ? 'active' : ''} aria-current={number === currentPage ? 'page' : undefined} onClick={() => changePage(number)} key={number}>{number}</button>)}<button disabled={currentPage === totalPages} onClick={() => changePage(currentPage + 1)}><span>{t('nextPage')}</span> ›</button></nav></> : <><p className="notice">{t('noPlayers')}</p>
-          {missing.length > 0 && <section className="epic-panel missing-players">
-            <div className="section-heading"><h2>Seen competing, not in the market</h2><span>{missing.length}</span></div>
-            <p>These accounts appear in tournaments we track but are not carried yet. Statistics are only what we already recorded — nothing here is estimated.</p>
-            <ul>{missing.map(account => <li key={account.account_id}>
-              <strong>{account.username}</strong>
-              <span>Best rank {account.best_rank} · {account.appearances} {account.appearances === 1 ? 'event' : 'events'}</span>
-              <small>{account.latest_event || 'Unknown event'}{account.latest_region ? ` · ${account.latest_region}` : ''}</small>
-            </li>)}</ul>
-          </section>}</>}
     </main>
   </div>;
 }

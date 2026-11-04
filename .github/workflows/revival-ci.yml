@@ -32,6 +32,7 @@ jobs:
       - run: npm run check:api-bounds
       - run: npm run check:pool
       - run: npm run check:auth
+      - run: npm run check:weekend
       - run: npm run check:admin
       - name: Start isolated Supabase
         run: npx --yes supabase@2.113.0 start

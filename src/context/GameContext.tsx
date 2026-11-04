@@ -4,8 +4,10 @@
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
 import { AccountPortfolio, League, LeagueSettings, Player, Profile } from '@/lib/types';
 import { COMMUNICATION_CONSENT_VERSION } from '@/lib/community';
-import { fetchPlayersByIds } from '@/lib/market-players';
+import { DEV_PREVIEW_LEAGUE_ID, DEV_PREVIEW_USER_ID, clearDevPreview, devPreviewRequested } from '@/lib/dev-preview';
+import { fetchPlayersByIds, searchMarketPlayers } from '@/lib/market-players';
 import { supabase } from '@/lib/supabase';
+import { WEEKEND_PRESET } from '@/lib/weekend';
 import { useLocale } from './LocaleContext';
 
 interface GameState {
@@ -16,6 +18,7 @@ interface GameState {
   profile: Profile | null;
   accountPortfolio: AccountPortfolio;
   loading: boolean;
+  previewing: boolean;
   userEmail: string | null;
   userId: string | null;
   addToTeam: (player: Player) => Promise<string | null>;
@@ -51,6 +54,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [accountPortfolio, setAccountPortfolio] = useState<AccountPortfolio>(EMPTY_PORTFOLIO);
   const [loading, setLoading] = useState(true);
+  const [previewing, setPreviewing] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
@@ -97,8 +101,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const membership = membershipsResult.data.find(row => row.league_id === selected);
       currentCoins = membership ? membership.coins - membership.reserved_coins : 10000;
       localStorage.setItem('fantafort-league', selected);
-    } else {
-      rosterIds = portfolio.positions.map(position => position.playerId);
     }
 
     const nextProfile: Profile = {
@@ -129,6 +131,37 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
+    if (devPreviewRequested()) {
+      const league: League = {
+        ...WEEKEND_PRESET,
+        id: DEV_PREVIEW_LEAGUE_ID,
+        name: 'Anteprima weekend',
+        inviteCode: 'LOCALE',
+        status: 'active',
+        ownerId: DEV_PREVIEW_USER_ID,
+        members: 2,
+        startsAt: new Date().toISOString(),
+        endsAt: new Date(Date.now() + 4 * 86400000).toISOString(),
+        marketClosesAt: new Date(Date.now() + 36 * 3600000).toISOString(),
+      };
+      setPreviewing(true);
+      setUserId(DEV_PREVIEW_USER_ID);
+      setUserEmail(null);
+      setProfile({
+        username: 'Anteprima', locale: 'it', rewardPoints: 0, experiencePoints: 120, isAdmin: false,
+        nameStyle: 'default', avatarStyle: 'default', communityEmailOptIn: false,
+        communityEmailOptedInAt: null, communityEmailOptedOutAt: null, publicLineupEnabled: false,
+      });
+      setLeagues([league]);
+      setActiveLeagueId(league.id);
+      setAccountPortfolio(EMPTY_PORTFOLIO);
+      void searchMarketPlayers(supabase, { pageSize: 3 }).then(result => {
+        const picked = result.players.slice(0, 3);
+        setTeam(picked);
+        setCoins(Math.max(0, league.budget - picked.reduce((sum, player) => sum + player.price, 0)));
+      }).catch(() => { setTeam([]); setCoins(league.budget); }).finally(() => setLoading(false));
+      return;
+    }
 
     const applySession = async (email: string | null, id?: string) => {
       setUserEmail(email); setUserId(id || null);
@@ -144,24 +177,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [loadCloudGame]);
 
   useEffect(() => {
-    if (!supabase || !userId) return;
+    if (!supabase || !userId || previewing) return;
     const client = supabase;
     client.rpc('touch_presence');
     // Hidden tabs neither need fresh data nor count as online.
     const timer = setInterval(() => { if (document.visibilityState === 'visible') client.rpc('touch_presence'); }, 60000);
     return () => clearInterval(timer);
-  }, [userId]);
+  }, [previewing, userId]);
 
   useEffect(() => {
-    if (!supabase || !userId) return;
+    if (!supabase || !userId || previewing) return;
     const timer = setInterval(() => { if (document.visibilityState === 'visible') loadCloudGame(userId, activeLeagueId).catch(() => undefined); }, 60000);
     return () => clearInterval(timer);
-  }, [activeLeagueId, loadCloudGame, userId]);
+  }, [activeLeagueId, loadCloudGame, previewing, userId]);
 
   const accountTrade = async (action: 'buy' | 'sell', playerId: string) => {
-    if (!supabase) return 'Sign in first';
+    if (previewing) return t('devPreviewNote');
+    if (!supabase) return t('signInFirst');
     const { data } = await supabase.auth.getSession();
-    if (!data.session) return 'Sign in first';
+    if (!data.session) return t('signInFirst');
     const fn = action === 'buy' ? 'account_buy_player' : 'account_sell_player';
     const { error } = await supabase.rpc(fn, { target_player_id: playerId, request_id: crypto.randomUUID() });
     if (error) return error.message;
@@ -170,14 +204,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
   };
 
   const addToTeam = async (player: Player) => {
-    if (!supabase) return 'Sign in first';
-    if (!activeLeagueId) return accountTrade('buy', player.id);
-    if (team.some(item => item.id === player.id)) return 'Player already in roster';
+    if (previewing) return t('devPreviewNote');
+    if (!supabase) return t('signInFirst');
+    if (!activeLeagueId) return t('needsLeague');
+    if (team.some(item => item.id === player.id)) return t('alreadyRostered');
     const rosterLimit = leagues.find(league => league.id === activeLeagueId)?.rosterSize || MAX_ROSTER;
     if (team.length >= rosterLimit) return `${t('rosterFull')} (${rosterLimit})`;
     if (coins < player.price) return t('notEnough');
     const { data } = await supabase.auth.getSession();
-    if (!data.session) return 'Sign in first';
+    if (!data.session) return t('signInFirst');
     const result = await supabase.rpc('league_buy_player', { target_league: activeLeagueId, target_player_id: player.id });
     if (result.error) return result.error.message;
     await loadCloudGame(data.session.user.id, activeLeagueId);
@@ -185,12 +220,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
   };
 
   const removeFromTeam = async (playerId: string) => {
-    if (!supabase) return 'Sign in first';
-    if (!activeLeagueId) return accountTrade('sell', playerId);
+    if (previewing) return t('devPreviewNote');
+    if (!supabase) return t('signInFirst');
+    if (!activeLeagueId) return t('needsLeague');
     const player = team.find(item => item.id === playerId);
-    if (!player) return 'Player not in roster';
+    if (!player) return t('notInRoster');
     const { data } = await supabase.auth.getSession();
-    if (!data.session) return 'Sign in first';
+    if (!data.session) return t('signInFirst');
     const result = await supabase.rpc('league_sell_player', { target_league: activeLeagueId, target_player_id: playerId });
     if (result.error) return result.error.message;
     await loadCloudGame(data.session.user.id, activeLeagueId);
@@ -198,7 +234,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   };
 
   const rpcAndRefresh = async (fn: string, args: Record<string, unknown>) => {
-    if (!supabase || !userId) return 'Sign in first';
+    if (previewing) return t('devPreviewNote');
+    if (!supabase || !userId) return t('signInFirst');
     const { data, error } = await supabase.rpc(fn, args);
     if (error) return error.message;
     await loadCloudGame(userId, typeof data === 'string' ? data : activeLeagueId);
@@ -208,12 +245,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const selectLeague = useCallback(async (id: string) => {
     setActiveLeagueId(id);
     localStorage.setItem('fantafort-league', id);
-    if (userId) await loadCloudGame(userId, id);
-  }, [loadCloudGame, userId]);
-  const signOut = async () => { if (supabase) await supabase.auth.signOut(); };
+    if (userId && !previewing) await loadCloudGame(userId, id);
+  }, [loadCloudGame, previewing, userId]);
+  const signOut = async () => {
+    if (previewing) { clearDevPreview(); window.location.assign('/auth'); return; }
+    if (supabase) await supabase.auth.signOut();
+  };
 
   return <GameContext.Provider value={{
-    coins, team, leagues, activeLeagueId, profile, accountPortfolio, loading, userEmail, userId,
+    coins, team, leagues, activeLeagueId, profile, accountPortfolio, loading, previewing, userEmail, userId,
     addToTeam, removeFromTeam, selectLeague,
     accountBuyPlayer: playerId => accountTrade('buy', playerId),
     accountSellPlayer: playerId => accountTrade('sell', playerId),
