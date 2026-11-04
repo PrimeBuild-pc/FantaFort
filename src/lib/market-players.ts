@@ -19,6 +19,7 @@ export function mapPlayer(row: Record<string, unknown>): Player {
 }
 
 export const MARKET_PAGE_SIZE = 48;
+export type MarketSort = 'price' | 'change' | 'name';
 /** Matches the server-side cap in get_players_by_ids. */
 const MAX_IDS = 500;
 
@@ -37,12 +38,13 @@ export async function fetchPlayersByIds(client: SupabaseClient, ids: string[]): 
 /** One page of the market. `total` is the unpaginated match count for the pager. */
 export async function searchMarketPlayers(
   client: SupabaseClient,
-  { search = '', page = 1, pageSize = MARKET_PAGE_SIZE }: { search?: string; page?: number; pageSize?: number } = {},
+  { search = '', page = 1, pageSize = MARKET_PAGE_SIZE, sort = 'price' }: { search?: string; page?: number; pageSize?: number; sort?: MarketSort } = {},
 ): Promise<{ players: Player[]; total: number }> {
   const { data, error } = await client.rpc('search_market_players', {
     search: search.trim().slice(0, 80) || null,
     page_limit: pageSize,
     page_offset: Math.max(0, page - 1) * pageSize,
+    sort,
   });
   if (error) throw error;
   const rows = (data || []) as Record<string, unknown>[];

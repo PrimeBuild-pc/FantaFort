@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { GameProvider, useGame } from "@/context/GameContext";
 import { useLocale } from "@/context/LocaleContext";
-import { Locale, locales } from "@/lib/i18n";
 import { getLevelProgress } from "@/lib/types";
 import BetaCommunityNotice from "@/components/BetaCommunityNotice";
 import CookieNotice from "@/components/CookieNotice";
@@ -14,11 +13,6 @@ import OnboardingGuide from "@/components/OnboardingGuide";
 
 // Inside the app group only sign-in and the global leaderboard are open to visitors.
 const publicRoutes = new Set(["/auth", "/leaderboard"]);
-
-function LanguageSwitcher() {
-    const { locale, setLocale, t } = useLocale();
-    return <label className="global-language"><span>{t('language')}</span><select aria-label={t('language')} value={locale} onChange={event => setLocale(event.target.value as Locale)}>{locales.map(item => <option key={item} value={item}>{item.toUpperCase()}</option>)}</select></label>;
-}
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
     const { loading, userId, profile } = useGame();
@@ -59,7 +53,7 @@ function LevelUpNotice() {
 function RouteShell({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     if (publicRoutes.has(pathname)) return children;
-    return <><LanguageSwitcher /><AuthGuard>{children}<BetaCommunityNotice /><OnboardingGuide /><LevelUpNotice /><CookieNotice /><LegalFooter /></AuthGuard></>;
+    return <AuthGuard>{children}<BetaCommunityNotice /><OnboardingGuide /><LevelUpNotice /><CookieNotice /><LegalFooter /></AuthGuard>;
 }
 
 export default function AppShell({ children }: { children: React.ReactNode }) {

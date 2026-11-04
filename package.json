@@ -17,6 +17,7 @@
     "check:db": "node --env-file-if-exists=.env.local scripts/check-social.mjs",
     "check:community": "node --env-file-if-exists=.env.local scripts/check-community.mjs",
     "check:auth": "node --experimental-strip-types scripts/check-auth-redirect.mjs",
+    "check:weekend": "node --experimental-strip-types scripts/check-weekend.mjs",
     "check:admin": "node scripts/check-admin-security.mjs && node --experimental-strip-types scripts/check-admin-config.mjs && node --experimental-strip-types scripts/check-admin-jwt.mjs",
     "check:client-secrets": "node scripts/check-client-secrets.mjs",
     "check:headers": "node --experimental-strip-types scripts/check-security-headers.mjs",

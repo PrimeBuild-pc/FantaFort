@@ -97,8 +97,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const membership = membershipsResult.data.find(row => row.league_id === selected);
       currentCoins = membership ? membership.coins - membership.reserved_coins : 10000;
       localStorage.setItem('fantafort-league', selected);
-    } else {
-      rosterIds = portfolio.positions.map(position => position.playerId);
     }
 
     const nextProfile: Profile = {
@@ -159,9 +157,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [activeLeagueId, loadCloudGame, userId]);
 
   const accountTrade = async (action: 'buy' | 'sell', playerId: string) => {
-    if (!supabase) return 'Sign in first';
+    if (!supabase) return t('signInFirst');
     const { data } = await supabase.auth.getSession();
-    if (!data.session) return 'Sign in first';
+    if (!data.session) return t('signInFirst');
     const fn = action === 'buy' ? 'account_buy_player' : 'account_sell_player';
     const { error } = await supabase.rpc(fn, { target_player_id: playerId, request_id: crypto.randomUUID() });
     if (error) return error.message;
@@ -170,14 +168,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
   };
 
   const addToTeam = async (player: Player) => {
-    if (!supabase) return 'Sign in first';
-    if (!activeLeagueId) return accountTrade('buy', player.id);
-    if (team.some(item => item.id === player.id)) return 'Player already in roster';
+    if (!supabase) return t('signInFirst');
+    if (!activeLeagueId) return t('needsLeague');
+    if (team.some(item => item.id === player.id)) return t('alreadyRostered');
     const rosterLimit = leagues.find(league => league.id === activeLeagueId)?.rosterSize || MAX_ROSTER;
     if (team.length >= rosterLimit) return `${t('rosterFull')} (${rosterLimit})`;
     if (coins < player.price) return t('notEnough');
     const { data } = await supabase.auth.getSession();
-    if (!data.session) return 'Sign in first';
+    if (!data.session) return t('signInFirst');
     const result = await supabase.rpc('league_buy_player', { target_league: activeLeagueId, target_player_id: player.id });
     if (result.error) return result.error.message;
     await loadCloudGame(data.session.user.id, activeLeagueId);
@@ -185,12 +183,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
   };
 
   const removeFromTeam = async (playerId: string) => {
-    if (!supabase) return 'Sign in first';
-    if (!activeLeagueId) return accountTrade('sell', playerId);
+    if (!supabase) return t('signInFirst');
+    if (!activeLeagueId) return t('needsLeague');
     const player = team.find(item => item.id === playerId);
-    if (!player) return 'Player not in roster';
+    if (!player) return t('notInRoster');
     const { data } = await supabase.auth.getSession();
-    if (!data.session) return 'Sign in first';
+    if (!data.session) return t('signInFirst');
     const result = await supabase.rpc('league_sell_player', { target_league: activeLeagueId, target_player_id: playerId });
     if (result.error) return result.error.message;
     await loadCloudGame(data.session.user.id, activeLeagueId);
@@ -198,7 +196,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   };
 
   const rpcAndRefresh = async (fn: string, args: Record<string, unknown>) => {
-    if (!supabase || !userId) return 'Sign in first';
+    if (!supabase || !userId) return t('signInFirst');
     const { data, error } = await supabase.rpc(fn, args);
     if (error) return error.message;
     await loadCloudGame(userId, typeof data === 'string' ? data : activeLeagueId);

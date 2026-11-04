@@ -11,6 +11,7 @@ import { useLocale } from '@/context/LocaleContext';
 import { searchMarketPlayers } from '@/lib/market-players';
 import { supabase } from '@/lib/supabase';
 import type { Player } from '@/lib/types';
+import { pairById } from '@/lib/weekend';
 
 type RosterPlayer = { id: string; handle: string; photo_url?: string; price: number };
 type Row = {
@@ -21,6 +22,12 @@ type Row = {
 type Tournament = { window_id: string; name: string; starts_at: string; format: string; match_cap: number | null };
 type Pick = { id: number; window_id: string; pick_type: string; player_id: string; partner_player_id: string | null; predicted_points: number | null; cost: number };
 type Auction = { id:number; player_id:string; starting_bid:number; current_bid:number|null; bidder_id:string|null; ends_at:string; status:string; players:{handle:string;price:number}|null };
+type WindowView = {
+  window: { windowId: string; name: string; region: string; startsAt: string; endsAt: string; syncedAt: string | null; status: 'upcoming' | 'live' | 'completed' } | null;
+  players: { userId: string; playerId: string; handle: string; points: number; rank: number | null; matches: number }[];
+  scores: { userId: string; username: string; points: number }[];
+  picks: { userId: string; pickType: string; playerHandle: string | null; partnerHandle: string | null; predictedPoints: number | null; cost: number }[];
+};
 
 export default function LeagueDashboardPage() {
   const { id } = useParams<{ id: string }>();
@@ -42,18 +49,24 @@ export default function LeagueDashboardPage() {
   const [clock, setClock] = useState(0);
   const [updated, setUpdated] = useState<Date>();
   const [message, setMessage] = useState('');
+  const [auctionQuery, setAuctionQuery] = useState('');
+  const [windowView, setWindowView] = useState<WindowView | null>(null);
+  const [windowMissing, setWindowMissing] = useState(false);
   const league = leagues.find(item => item.id === id);
 
   const load = useCallback(async () => {
     if (!supabase) return;
     const now = new Date().toISOString();
-    const [dashboard, tournaments, strategies, auctions] = await Promise.all([
+    const [dashboard, tournaments, strategies, auctions, windowResult] = await Promise.all([
       // Live for running leagues, the frozen payout snapshot once completed.
       supabase.rpc('get_league_standings', { target_league: id }),
       supabase.from('tournaments').select('window_id,name,starts_at,format,match_cap').gt('starts_at', now).order('starts_at').limit(12),
       supabase.from('league_strategy_picks').select('id,window_id,pick_type,player_id,partner_player_id,predicted_points,cost').eq('league_id', id).eq('user_id', userId || ''),
       supabase.from('league_auctions').select('id,player_id,starting_bid,current_bid,bidder_id,ends_at,status,players(handle,price)').eq('league_id', id).eq('status','active').maybeSingle(),
+      supabase.rpc('get_league_window', { target_league: id }),
     ]);
+    if (windowResult.error) { setWindowMissing(true); setWindowView(null); }
+    else { setWindowMissing(false); setWindowView((windowResult.data || null) as WindowView | null); }
     if (dashboard.error) return setMessage(dashboard.error.message);
     const nextRows: Row[] = (dashboard.data || []).map((row: Row) => ({
       ...row,
@@ -79,13 +92,18 @@ export default function LeagueDashboardPage() {
   useEffect(() => { load(); const timer = setInterval(() => { if (document.visibilityState === 'visible') load(); }, 30000); return () => clearInterval(timer); }, [load]);
   // The one-second clock only drives the auction countdown.
   useEffect(() => { if (!auction) return; const timer = setInterval(() => setClock(Date.now()), 1000); return () => clearInterval(timer); }, [auction]);
-  // Only the auction form needs a player list, and it never showed more than 150.
+  // Nomination searches the whole market. The first price page is not the pool.
   useEffect(() => {
-    if (!supabase) return;
-    searchMarketPlayers(supabase, { page: 1, pageSize: 100 })
-      .then(result => setAuctionOptions(result.players))
-      .catch(() => setAuctionOptions([]));
-  }, []);
+    if (!supabase || league?.draftMode !== 'auction') return;
+    const client = supabase;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      searchMarketPlayers(client, { search: auctionQuery, page: 1, pageSize: 20 })
+        .then(result => { if (!cancelled) setAuctionOptions(result.players); })
+        .catch(() => { if (!cancelled) setAuctionOptions([]); });
+    }, auctionQuery ? 250 : 0);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [auctionQuery, league?.draftMode]);
 
   const mine = rows.find(row => row.user_id === userId);
   const leader = Math.max(1, ...rows.map(row => row.points));
@@ -123,8 +141,26 @@ export default function LeagueDashboardPage() {
   const requiredBidFunds = auction?.bidder_id === userId ? Math.max(0, bid - (auction.current_bid || 0)) : bid;
 
   return <div className="app-shell"><Header /><main className="container page-content">
-    <section className="live-hero"><div><div className="live-badge"><i /> LIVE FANTAFORT</div><h1>{league?.name || t('liveDashboard')}</h1><p>{updated ? `${t('updated')} ${updated.toLocaleTimeString(locale)}` : t('loading')}</p><small>{league ? `${t(`${league.scoringMode}Mode` as 'classicMode')} · ${marketOpen ? t('marketOpen') : t('marketClosed')}${league.economyMode === 'account_stake' ? ` · ${t('virtualPrizePool')}: ${(league.entryStake * league.members).toLocaleString(locale)} C` : ''}` : ''}</small></div><div className="league-actions"><Link href="/dashboard" className="epic-button">{t('market')}</Link>{league?.status === 'active' && (league.ownerId === userId ? canFinish : Boolean(league.endsAt && updated && Date.parse(league.endsAt) + 86400000 <= updated.getTime())) && <button className="epic-button secondary" onClick={async () => setMessage(await finishLeague(id) || t('winnerRewarded'))}>{t('finishLeague')}</button>}</div></section>
+    <section className="live-hero"><div><div className="live-badge"><i /> {t('thisWindow')}</div><h1>{league?.name || t('liveDashboard')}</h1><p>{updated ? `${t('updated')} ${updated.toLocaleTimeString(locale)}` : t('loading')}</p><small>{league ? `${t(`${league.scoringMode}Mode` as 'classicMode')} · ${marketOpen ? t('marketOpen') : t('marketClosed')}${league.economyMode === 'account_stake' ? ` · ${t('virtualPrizePool')}: ${(league.entryStake * league.members).toLocaleString(locale)} C` : ''}` : ''}</small></div><div className="league-actions"><Link href="/market" className="epic-button">{t('market')}</Link>{league?.status === 'active' && (league.ownerId === userId ? canFinish : Boolean(league.endsAt && updated && Date.parse(league.endsAt) + 86400000 <= updated.getTime())) && <button className="epic-button secondary" onClick={async () => setMessage(await finishLeague(id) || t('winnerRewarded'))}>{t('finishLeague')}</button>}</div></section>
     <FeedbackNotice message={message}/>
+    <section className="epic-panel">
+      <div className="eyebrow">{t('weekendClash')}</div>
+      <h2>{windowView?.window?.name || t('nextWindow')}</h2>
+      {windowMissing ? <p className="notice">{t('noWindowLines')}</p> : windowView?.window ? <>
+        <p>{windowView.window.region} · {windowView.window.status === 'live' ? t('clashLive') : windowView.window.status === 'upcoming' ? t('clashUpcoming') : t('clashRecap')}</p>
+        <p>{t('dataAsOf').replace('{time}', windowView.window.syncedAt ? new Date(windowView.window.syncedAt).toLocaleString(locale) : '—')}</p>
+        <h3>{t('yourPlayers')}</h3>
+        <ul className="slot-list">{windowView.players.filter(player => player.userId === userId).map(player => <li key={player.playerId}><strong>{player.handle}</strong><span>{player.points} {t('points')}{player.rank ? ` · #${player.rank}` : ''}</span></li>)}{!windowView.players.some(player => player.userId === userId) && <li className="open"><span>{t('emptySquad')}</span></li>}</ul>
+        <div className="clash-grid">{pairById(windowView.scores).map(pair => {
+          const settled = windowView.window?.status !== 'upcoming';
+          const homeWins = settled && pair.away != null && pair.home.points > pair.away.points;
+          const awayWins = settled && pair.away != null && pair.away.points > pair.home.points;
+          return <article className="clash-pair" key={pair.home.userId}><div className={homeWins ? 'winner' : ''}><strong>{pair.home.username}</strong><b>{settled ? pair.home.points : '—'}</b></div><span>{pair.away ? 'vs' : t('bye')}</span>{pair.away ? <div className={awayWins ? 'winner' : ''}><strong>{pair.away.username}</strong><b>{settled ? pair.away.points : '—'}</b></div> : <div />}</article>;
+        })}</div>
+        <div className="pick-list">{windowView.picks.map(pick => <span key={`${pick.userId}:${pick.pickType}`}>{pick.playerHandle || t('player')}{pick.partnerHandle ? ` + ${pick.partnerHandle}` : ''}{pick.predictedPoints != null ? ` · ${pick.predictedPoints}` : ''} · {t(pick.pickType === 'captain' ? 'captain' : pick.pickType === 'duo_call' ? 'duoPrediction' : 'scorePrediction')}</span>)}</div>
+        <p className="form-hint">{t('clashNote')}</p>
+      </> : <p className="notice">{t('noWindow')}</p>}
+    </section>
     <div className="standings">
       {rows.map((row, index) => <article className={`standing-row strategic ${index === 0 ? 'leader' : ''}`} key={row.user_id}>
         <div className="rank">#{index + 1}</div>
@@ -135,10 +171,10 @@ export default function LeagueDashboardPage() {
       </article>)}
     </div>
 
-    {league?.status === 'active' && league.draftMode === 'auction' && <section className="auction-panel epic-panel"><div><div className="eyebrow">LIVE AUCTION</div><h2>{t('auctionDraft')}</h2><p>{t('auctionRules')}</p></div>{auction ? <div className="active-auction"><div><small>{t('player')}</small><h3>{auction.players?.handle || auction.player_id}</h3><span>{t('marketPrice')}: {auction.players?.price?.toLocaleString(locale) || '—'} C</span></div><div className="auction-price"><small>{t('currentBid')}</small><b>{(auction.current_bid || auction.starting_bid).toLocaleString(locale)} C</b><span>{remaining}s</span></div>{remaining > 0 ? <form onSubmit={event=>{event.preventDefault();auctionAction('bid')}}><label>{t('yourBid')}<input type="number" min={auction.current_bid ? auction.current_bid + 100 : auction.starting_bid} step="100" value={bid} onChange={event=>setBid(Number(event.target.value))}/></label><button className="epic-button" disabled={!mine || mine.coins < requiredBidFunds}>{t('placeBid')}</button>{league.ownerId===userId&&!auction.bidder_id&&<button type="button" className="link-button danger" onClick={()=>auctionAction('cancel')}>{t('cancelAuction')}</button>}</form>:<button className="epic-button" onClick={()=>auctionAction('settle')}>{t('settleAuction')}</button>}</div>:league.ownerId===userId&&marketOpen?<form onSubmit={event=>{event.preventDefault();auctionAction('start')}}><div className="settings-grid"><label>{t('player')}<select value={auctionPlayer} onChange={event=>setAuctionPlayer(event.target.value)}>{auctionOptions.filter(player=>!rows.some(row=>row.roster.some(item=>item.id===player.id))).slice(0,150).map(player=><option value={player.id} key={player.id}>{player.handle} · {player.price.toLocaleString(locale)} C</option>)}</select></label><label>{t('auctionDuration')}<select value={auctionDuration} onChange={event=>setAuctionDuration(Number(event.target.value))}>{[30,60,90,120,180,300].map(value=><option value={value} key={value}>{value}s</option>)}</select></label></div><button className="epic-button">{t('startAuction')}</button></form>:<p className="notice">{marketOpen?t('waitingForAuction'):t('marketClosed')}</p>}</section>}
+    {league?.status === 'active' && league.draftMode === 'auction' && <section className="auction-panel epic-panel"><div><div className="eyebrow">{t('liveAuction')}</div><h2>{t('auctionDraft')}</h2><p>{t('auctionRules')}</p></div>{auction ? <div className="active-auction"><div><small>{t('player')}</small><h3>{auction.players?.handle || auction.player_id}</h3><span>{t('marketPrice')}: {auction.players?.price?.toLocaleString(locale) || '—'} C</span></div><div className="auction-price"><small>{t('currentBid')}</small><b>{(auction.current_bid || auction.starting_bid).toLocaleString(locale)} C</b><span>{remaining}s</span></div>{remaining > 0 ? <form onSubmit={event=>{event.preventDefault();auctionAction('bid')}}><label>{t('yourBid')}<input type="number" min={auction.current_bid ? auction.current_bid + 100 : auction.starting_bid} step="100" value={bid} onChange={event=>setBid(Number(event.target.value))}/></label><button className="epic-button" disabled={!mine || mine.coins < requiredBidFunds}>{t('placeBid')}</button>{league.ownerId===userId&&!auction.bidder_id&&<button type="button" className="link-button danger" onClick={()=>auctionAction('cancel')}>{t('cancelAuction')}</button>}</form>:<button className="epic-button" onClick={()=>auctionAction('settle')}>{t('settleAuction')}</button>}</div>:league.ownerId===userId&&marketOpen?<form onSubmit={event=>{event.preventDefault();auctionAction('start')}}><div className="settings-grid"><label>{t('searchPlayers')}<input value={auctionQuery} maxLength={80} onChange={event=>setAuctionQuery(event.target.value)} placeholder={t('searchPlayers')} /></label><label>{t('player')}<select value={auctionPlayer} onChange={event=>setAuctionPlayer(event.target.value)}>{auctionOptions.filter(player=>!rows.some(row=>row.roster.some(item=>item.id===player.id))).map(player=><option value={player.id} key={player.id}>{player.handle} · {player.price.toLocaleString(locale)} C</option>)}</select></label><label>{t('auctionDuration')}<select value={auctionDuration} onChange={event=>setAuctionDuration(Number(event.target.value))}>{[30,60,90,120,180,300].map(value=><option value={value} key={value}>{value}s</option>)}</select></label></div><button className="epic-button">{t('startAuction')}</button></form>:<p className="notice">{marketOpen?t('waitingForAuction'):t('marketClosed')}</p>}</section>}
 
     {league?.status === 'active' && <section className="strategy-panel epic-panel">
-      <div><div className="eyebrow">STRATEGY LAB</div><h2>{t('spendRemainder')}</h2><p>{t('strategyRules')}</p></div>
+      <div><div className="eyebrow">{t('strategyLab')}</div><h2>{t('spendRemainder')}</h2><p>{t('strategyRules')}</p></div>
       {mine?.roster.length && events.length ? <form onSubmit={buyStrategy}>
         <label>{t('event')}<select value={eventId} onChange={event => setEventId(event.target.value)}>{events.map(item => <option key={item.window_id} value={item.window_id}>{item.name} · {new Date(item.starts_at).toLocaleString(locale)} · {item.format}</option>)}</select></label>
         <label>{t('strategy')}<select value={strategy} onChange={event => setStrategy(event.target.value as typeof strategy)}><option value="captain">{t('captain')}</option><option value="duo_call">{t('duoPrediction')}</option><option value="exact_score">{t('scorePrediction')}</option></select></label>
@@ -148,7 +184,10 @@ export default function LeagueDashboardPage() {
         </div>
         <button className="epic-button" disabled={!selectedEvent || existing.has(`${eventId}:${strategy}`) || mine.coins < strategyCost}>{existing.has(`${eventId}:${strategy}`) ? t('alreadyPicked') : `${t('activate')} · ${strategyCost.toLocaleString(locale)} C`}</button>
       </form> : <p className="notice">{t('strategyUnavailable')}</p>}
-      {picks.length > 0 && <div className="pick-list">{picks.map(pick => <span key={pick.id}>{t(pick.pick_type === 'captain' ? 'captain' : pick.pick_type === 'duo_call' ? 'duoPrediction' : 'scorePrediction')} · {pick.cost.toLocaleString(locale)} C</span>)}</div>}
+      {picks.length > 0 && <div className="pick-list">{picks.map(pick => {
+        const named = (player: string | null) => mine?.roster.find(item => item.id === player)?.handle;
+        return <span key={pick.id}>{t(pick.pick_type === 'captain' ? 'captain' : pick.pick_type === 'duo_call' ? 'duoPrediction' : 'scorePrediction')} · {named(pick.player_id) || t('player')}{pick.partner_player_id ? ` + ${named(pick.partner_player_id) || t('teammate')}` : ''}{pick.predicted_points != null ? ` · ${pick.predicted_points}` : ''} · {pick.cost.toLocaleString(locale)} C</span>;
+      })}</div>}
     </section>}
     <p className="data-disclaimer">{t('syncDisclaimer')}</p>
   </main></div>;

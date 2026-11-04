@@ -22,7 +22,9 @@ export default function PlayerCard({ player, compareMode, compareSelected, onTog
   const [error, setError] = useState('');
   const isOwned = team.some(item => item.id === player.id);
   const canAfford = coins >= player.price;
-  const auctionOnly = leagues.find(league => league.id === activeLeagueId)?.draftMode === 'auction';
+  const league = leagues.find(item => item.id === activeLeagueId);
+  const auctionOnly = league?.draftMode === 'auction';
+  const buyLabel = !activeLeagueId ? t('chooseLeague') : auctionOnly ? t('auctionOnly') : pending ? t('wait') : isOwned ? t('sell') : t('recruitLeague');
   const colors = { common: '#a8b2c6', rare: '#2e9cff', epic: '#b347ff', legendary: '#f7c945' };
   const color = colors[player.rarity];
 
@@ -65,8 +67,8 @@ export default function PlayerCard({ player, compareMode, compareSelected, onTog
         <div className="player-info">
           <div className="eyebrow">{player.team || 'FORTNITE PRO'}</div><h3>{player.handle}</h3>
           <p>{player.realName || player.eligibility || t('eligible')}</p>
-          <div className="quick-stats"><span><small>PTS</small><b>{number(player.tournamentPoints)}</b></span><span><small>CUPS</small><b>{number(player.cupsPlayed)}</b></span><button type="button" className="card-flip-toggle" aria-expanded={flipped} tabIndex={flipped ? -1 : 0} onClick={event => { event.stopPropagation(); setFlipped(true); }}>{t('details')} ↻</button></div>
-          <button className={isOwned ? 'epic-button owned' : 'epic-button'} tabIndex={flipped ? -1 : 0} onClick={act} disabled={auctionOnly || pending || (!isOwned && !canAfford)}>{auctionOnly ? t('auctionOnly') : pending ? t('wait') : isOwned ? t('sell') : t('purchase')}</button>
+          <div className="quick-stats"><span><small>{t('form')}</small><b>{number(player.pointsPerMatch)}</b></span><span><small>{t('avgPlacement')}</small><b>{player.averagePlacement ? `#${number(player.averagePlacement)}` : '—'}</b></span><button type="button" className="card-flip-toggle" aria-expanded={flipped} tabIndex={flipped ? -1 : 0} onClick={event => { event.stopPropagation(); setFlipped(true); }}>{t('details')} ↻</button></div>
+          <button className={isOwned ? 'epic-button owned' : 'epic-button'} tabIndex={flipped ? -1 : 0} onClick={act} disabled={!activeLeagueId || auctionOnly || pending || (!isOwned && !canAfford)}>{buyLabel}</button>
           {error && <p className="card-error" role="alert">{error}</p>}
         </div>
       </section>
@@ -75,7 +77,7 @@ export default function PlayerCard({ player, compareMode, compareSelected, onTog
         <div className="card-back-header"><div><div className="eyebrow">{t('playerAnalysis')}</div><h3>{player.handle}</h3></div><span>{player.rarity}</span></div>
         <div className="stat-grid">{stats.map(([label, value]) => <div className="stat-cell" key={label}><small>{label}</small><b>{value}</b></div>)}</div>
         <div className="eligibility-box"><small>{player.teammates?.length ? t('recentTeammates') : t('eligible')}</small><p>{player.teammates?.length ? player.teammates.map(teammate => teammate.handle).join(' · ') : player.eligibility || t('eligible')}</p>{player.averagePlacement != null && <span>{t('avgPlacement')}: #{number(player.averagePlacement)}</span>}</div>
-        <div className="back-actions"><button className={isOwned ? 'epic-button owned' : 'epic-button'} tabIndex={flipped ? 0 : -1} onClick={act} disabled={auctionOnly || pending || (!isOwned && !canAfford)}>{auctionOnly ? t('auctionOnly') : pending ? t('wait') : isOwned ? t('sell') : t('purchase')}</button><button className="epic-button secondary" tabIndex={flipped ? 0 : -1} onClick={event => { event.stopPropagation(); setFlipped(false); }}>{t('front')}</button></div>
+        <div className="back-actions"><button className={isOwned ? 'epic-button owned' : 'epic-button'} tabIndex={flipped ? 0 : -1} onClick={act} disabled={!activeLeagueId || auctionOnly || pending || (!isOwned && !canAfford)}>{buyLabel}</button><button className="epic-button secondary" tabIndex={flipped ? 0 : -1} onClick={event => { event.stopPropagation(); setFlipped(false); }}>{t('front')}</button></div>
         {error && <p className="card-error" role="alert">{error}</p>}
       </section>
     </div>

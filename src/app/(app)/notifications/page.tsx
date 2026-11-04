@@ -35,7 +35,7 @@ export default function NotificationsPage() {
   const href = (notice: Notice) => notice.type.startsWith('friend_') || notice.type === 'league_invite' ? '/friends' : notice.metadata.league_id ? `/leagues/${notice.metadata.league_id}` : '/notifications';
 
   return <div className="app-shell"><Header /><main className="container page-content">
-    <div className="page-title"><div className="eyebrow">ACTIVITY</div><h1>{t('notifications')}</h1></div>
+    <div className="page-title"><div className="eyebrow">{t('activityEyebrow')}</div><h1>{t('notifications')}</h1></div>
     {message && <p className="notice error" role="alert">{message}</p>}
     <section className="epic-panel notification-list" aria-busy={!loaded}>{!loaded ? <div className="empty-state compact"><p>{t('loading')}</p></div> : notices.length ? notices.map(notice => <Link href={href(notice)} className={!notice.read ? 'unread' : ''} key={notice.id}><i aria-hidden="true">◆</i><span><strong>{text(notice)}</strong><small>{new Date(notice.created_at).toLocaleString(locale)}</small></span></Link>) : <div className="empty-state compact"><p>{t('noNotifications')}</p></div>}</section>
   </main></div>;
