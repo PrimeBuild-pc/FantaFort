@@ -23,6 +23,7 @@ export default function LeaguesPage() {
   const [invitePreview, setInvitePreview] = useState<InvitePreview>();
   const [message, setMessage] = useState('');
   const joinApplied = useRef(false);
+  const presetApplied = useRef(false);
 
   const run = async (action: () => Promise<string | null>) => { setMessage(''); const error = await action(); setMessage(error || '✓'); };
   const previewInvite = async (event: FormEvent) => {
@@ -54,6 +55,13 @@ export default function LeaguesPage() {
       if (error || !data?.[0]) return setMessage(t('inviteUnavailable'));
       setInvitePreview(data[0] as InvitePreview);
     });
+  }, [t]);
+  useEffect(() => {
+    if (presetApplied.current) return;
+    if (new URLSearchParams(window.location.search).get('preset') !== 'weekend') return;
+    presetApplied.current = true;
+    setSettings(WEEKEND_PRESET);
+    setLeagueName(current => current || t('weekendLeague'));
   }, [t]);
   return <div className="app-shell"><Header /><main className="container page-content">
     <div className="page-title"><div className="eyebrow">{t('socialHub')}</div><h1>{t('leagues')}</h1><p>{t('leagueIntro')}</p></div>

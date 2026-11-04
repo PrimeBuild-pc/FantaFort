@@ -40,12 +40,14 @@ export async function searchMarketPlayers(
   client: SupabaseClient,
   { search = '', page = 1, pageSize = MARKET_PAGE_SIZE, sort = 'price' }: { search?: string; page?: number; pageSize?: number; sort?: MarketSort } = {},
 ): Promise<{ players: Player[]; total: number }> {
-  const { data, error } = await client.rpc('search_market_players', {
-    search: search.trim().slice(0, 80) || null,
-    page_limit: pageSize,
-    page_offset: Math.max(0, page - 1) * pageSize,
-    sort,
-  });
+  const term = search.trim().slice(0, 80) || null;
+  const page_limit = pageSize;
+  const page_offset = Math.max(0, page - 1) * pageSize;
+  let { data, error } = await client.rpc('search_market_players', { search: term, page_limit, page_offset, sort });
+  // Sort ships with the weekend migration. Until that function is in the database, the previous 3-argument search still fills the page.
+  if (error && (error.code === 'PGRST202' || /schema cache/i.test(error.message))) {
+    ({ data, error } = await client.rpc('search_market_players', { search: term, page_limit, page_offset }));
+  }
   if (error) throw error;
   const rows = (data || []) as Record<string, unknown>[];
   return { players: rows.map(mapPlayer), total: Number(rows[0]?.total_count || 0) };

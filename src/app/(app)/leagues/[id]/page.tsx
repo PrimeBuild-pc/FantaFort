@@ -11,6 +11,7 @@ import { useLocale } from '@/context/LocaleContext';
 import { searchMarketPlayers } from '@/lib/market-players';
 import { supabase } from '@/lib/supabase';
 import type { Player } from '@/lib/types';
+import { DEV_PREVIEW_LEAGUE_ID, DEV_PREVIEW_RIVAL_ID } from '@/lib/dev-preview';
 import { pairById } from '@/lib/weekend';
 
 type RosterPlayer = { id: string; handle: string; photo_url?: string; price: number };
@@ -31,7 +32,7 @@ type WindowView = {
 
 export default function LeagueDashboardPage() {
   const { id } = useParams<{ id: string }>();
-  const { leagues, userId, selectLeague, finishLeague, refresh } = useGame();
+  const { leagues, userId, selectLeague, finishLeague, refresh, previewing, team, profile, coins } = useGame();
   const { locale, t } = useLocale();
   const [rows, setRows] = useState<Row[]>([]);
   const [auctionOptions, setAuctionOptions] = useState<Player[]>([]);
@@ -89,7 +90,36 @@ export default function LeagueDashboardPage() {
   }, [auctionOptions, id, userId]);
   // Selecting reloads the whole game; keep it off the load dependency, which changes when auction options arrive.
   useEffect(() => { selectLeague(id); }, [id, selectLeague]);
-  useEffect(() => { load(); const timer = setInterval(() => { if (document.visibilityState === 'visible') load(); }, 30000); return () => clearInterval(timer); }, [load]);
+  useEffect(() => {
+    if (previewing && id === DEV_PREVIEW_LEAGUE_ID) return;
+    load();
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') load(); }, 30000);
+    return () => clearInterval(timer);
+  }, [id, load, previewing]);
+  useEffect(() => {
+    if (!previewing || id !== DEV_PREVIEW_LEAGUE_ID) return;
+    const roster = team.map(player => ({ id: player.id, handle: player.handle, price: player.price }));
+    const viewer = userId || '';
+    setRows([
+      { user_id: viewer, username: profile?.username || 'Anteprima', name_style: 'default', points: 96, projected_points: 110, base_points: 80, synergy_points: 6, strategy_points: 10, penalty_points: 0, coins, reserved_coins: 0, roster },
+      { user_id: DEV_PREVIEW_RIVAL_ID, username: 'Rivale', name_style: 'default', points: 71, projected_points: 84, base_points: 71, synergy_points: 0, strategy_points: 0, penalty_points: 0, coins: 5100, reserved_coins: 0, roster: roster.slice(0, 2) },
+    ]);
+    const captain = team[0];
+    setWindowView({
+      window: { windowId: 'preview-window', name: 'FNCS Division 1', region: 'EU', startsAt: new Date(Date.now() - 3600000).toISOString(), endsAt: new Date(Date.now() + 3600000).toISOString(), syncedAt: new Date().toISOString(), status: 'live' },
+      players: team.map((player, index) => ({ userId: viewer, playerId: player.id, handle: player.handle, points: 40 - index * 8, rank: 12 + index, matches: 4 })),
+      scores: [
+        { userId: viewer, username: profile?.username || 'Anteprima', points: 96 },
+        { userId: DEV_PREVIEW_RIVAL_ID, username: 'Rivale', points: 71 },
+      ],
+      picks: captain ? [{ userId: viewer, pickType: 'captain', playerHandle: captain.handle, partnerHandle: null, predictedPoints: null, cost: 500 }] : [],
+    });
+    setEvents([{ window_id: 'preview-window', name: 'FNCS Division 1', starts_at: new Date(Date.now() + 3600000).toISOString(), format: 'Series', match_cap: 6 }]);
+    setPicks(captain ? [{ id: 1, window_id: 'preview-window', pick_type: 'captain', player_id: captain.id, partner_player_id: null, predicted_points: null, cost: 500 }] : []);
+    setPlayerId(value => value || captain?.id || '');
+    setWindowMissing(false);
+    setUpdated(new Date());
+  }, [coins, id, previewing, profile?.username, team, userId]);
   // The one-second clock only drives the auction countdown.
   useEffect(() => { if (!auction) return; const timer = setInterval(() => setClock(Date.now()), 1000); return () => clearInterval(timer); }, [auction]);
   // Nomination searches the whole market. The first price page is not the pool.
@@ -114,7 +144,9 @@ export default function LeagueDashboardPage() {
   const existing = useMemo(() => new Set(picks.map(pick => `${pick.window_id}:${pick.pick_type}`)), [picks]);
 
   const buyStrategy = async (event: FormEvent) => {
-    event.preventDefault(); if (!supabase || !eventId || !playerId) return;
+    event.preventDefault();
+    if (previewing) { setMessage(t('devPreviewNote')); return; }
+    if (!supabase || !eventId || !playerId) return;
     setMessage('');
     const { error } = await supabase.rpc('buy_strategy_pick', {
       target_league: id, target_window: eventId, strategy, target_player_id: playerId,

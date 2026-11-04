@@ -11,6 +11,7 @@ import { Locale, locales } from '@/lib/i18n';
 import { LEGAL_VERSION } from '@/lib/legal';
 import { homeCopy } from '@/lib/marketing';
 import { Turnstile } from '@/components/Turnstile';
+import { enableDevPreview } from '@/lib/dev-preview';
 
 type Mode = 'signin' | 'signup' | 'forgot' | 'reset';
 const legalCopy:Record<Locale,{age:string;agree:string;required:string}>={
@@ -41,6 +42,11 @@ export default function AuthPage() {
   useEffect(() => {
     if (!supabase) return;
     const params = new URLSearchParams(window.location.search);
+    if (process.env.NODE_ENV === 'development' && params.get('preview') === '1') {
+      enableDevPreview();
+      router.replace('/dashboard');
+      return;
+    }
     const destination = safeRedirectPath(params.get('next'), window.location.origin);
     setNext(destination);
     if (params.get('reset') === '1') setMode('reset');
@@ -129,6 +135,7 @@ export default function AuthPage() {
         {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && mode !== 'reset' && <Turnstile key={captchaVersion} siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} onToken={setCaptchaToken} />}
         {message && <p className="notice" role="alert">{message}</p>}
         <button className="epic-button" disabled={pending || Boolean(captchaEnabled && mode !== 'reset' && !captchaToken)}>{pending ? t('wait') : title}</button>
+        {process.env.NODE_ENV === 'development' && <button className="link-button" type="button" onClick={() => { enableDevPreview(); router.replace('/dashboard'); }}>{t('devPreview')}</button>}
         {mode === 'signin' ? <button className="link-button" type="button" onClick={() => changeMode('forgot')}>{t('forgotPassword')}</button> : mode !== 'signup' && <button className="link-button" type="button" onClick={() => changeMode('signin')}>{t('backToLogin')}</button>}
       </form>
       <small className="auth-disclaimer">{marketing.fairBody}</small>
