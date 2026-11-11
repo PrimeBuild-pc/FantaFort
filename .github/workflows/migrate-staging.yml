@@ -1,9 +1,8 @@
 # Applies committed migrations to the staging project.
 #
 # The Supabase GitHub integration can only track one project per repository, and it
-# is bound to production. Staging therefore drifted: it is currently missing
-# 202608130001 and 202608130002. Without this, staging cannot be used to verify a
-# schema change before production sees it, which is the whole point of having it.
+# is bound to production. Keep staging in sync when its project is active;
+# paused or removed staging projects are reported without attempting a migration.
 #
 # Uses SUPABASE_ACCESS_TOKEN only. `link`/`db push` mint a short-lived login role
 # through the Management API when no DB_PASSWORD is set, so no database password is
@@ -20,7 +19,7 @@ on:
         default: list
   push:
     branches: [main]
-    paths: ['supabase/migrations/**']
+    paths: ['supabase/migrations/**', '.github/workflows/migrate-staging.yml']
 
 permissions:
   contents: read
@@ -45,7 +44,34 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.23.4
+      - name: Check staging availability
+        id: staging
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+
+          const response = await fetch(`https://api.supabase.com/v1/projects/${process.env.STAGING_PROJECT_REF}`, {
+            headers: { Authorization: `Bearer ${process.env.SUPABASE_ACCESS_TOKEN}` },
+            signal: AbortSignal.timeout(30_000),
+          });
+          if (!response.ok && response.status !== 404) {
+            throw new Error(`Staging availability check failed: HTTP ${response.status}`);
+          }
+          const status = response.status === 404 ? 'REMOVED' : (await response.json()).status;
+          const active = ['ACTIVE_HEALTHY', 'ACTIVE_UNHEALTHY'].includes(status);
+          const inactive = ['INACTIVE', 'PAUSING', 'REMOVED'].includes(status);
+          if (!active && !inactive) throw new Error('Staging project status is unavailable or not ready');
+
+          appendFileSync(process.env.GITHUB_OUTPUT, `active=${active}\n`);
+          if (!active) {
+            const message = `Staging is ${status}; migration skipped. No migration was applied. Resume or configure an active staging project before staging tests.`;
+            console.log(`::warning::${message}`);
+            appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${message}\n`);
+          }
+          NODE
       - name: Compare and apply migrations
+        if: steps.staging.outputs.active == 'true'
         shell: bash
         run: |
           set -euo pipefail
