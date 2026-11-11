@@ -1,5 +1,5 @@
 import { unstable_cache } from 'next/cache';
-import type { Tournament } from '@/app/tournaments/TournamentsClient';
+import type { Tournament } from '@/app/(app)/tournaments/TournamentsClient';
 import { fetchOsirionJson, isTournamentResponse } from './osirion-fetch';
 import { isDisplayEvent } from './pro-eligibility';
 export const tournamentRegions=new Set(['OCE','ASIA','ME','EU','BR','NAC','NAE','NAW','ONSITE']);

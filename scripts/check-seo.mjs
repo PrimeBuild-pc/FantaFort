@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 
 const base = (process.argv[2] || 'http://localhost:3000').replace(/\/$/, '');
 const publicPaths = ['/', '/how-it-works', '/it', '/es', '/de', '/fr', '/guides', '/guides/fncs-scoring-guide', '/it/guides/fncs-scoring-guide', '/players', '/players/peterbot', '/privacy', '/terms', '/cookies', '/credits', '/support'];
-const privatePaths = ['/auth', '/dashboard', '/account', '/leagues', '/tournaments', '/wallet'];
+const privatePaths = ['/auth', '/dashboard', '/market', '/account', '/leagues', '/tournaments', '/wallet'];
 
 for (const path of publicPaths) {
   const response = await fetch(`${base}${path}`);

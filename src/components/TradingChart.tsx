@@ -1,6 +1,7 @@
 "use client";
 
 import { PointerEvent, useMemo, useState } from 'react';
+import { useLocale } from '@/context/LocaleContext';
 
 export type ChartRange = '1D' | '1W' | '1M' | 'ALL';
 export type TradingPoint = { at: string; price: number };
@@ -16,7 +17,14 @@ type Props = {
 const WIDTH = 800, HEIGHT = 300, LEFT = 58, RIGHT = 16, TOP = 18, BOTTOM = 34;
 
 export default function TradingChart({ points, range, onRangeChange, locale, loading }: Props) {
+  const { t } = useLocale();
   const [mode, setMode] = useState<'area'|'line'>('area');
+  const ranges: { id: ChartRange; label: string }[] = [
+    { id: '1D', label: t('chartRangeDay') },
+    { id: '1W', label: t('chartRangeWeek') },
+    { id: '1M', label: t('chartRangeMonth') },
+    { id: 'ALL', label: t('chartRangeAll') },
+  ];
   const [hovered, setHovered] = useState<number>();
   const chart = useMemo(() => {
     const rows = [...points].sort((a,b)=>Date.parse(a.at)-Date.parse(b.at));
@@ -52,15 +60,15 @@ export default function TradingChart({ points, range, onRangeChange, locale, loa
   const ticks=[0,.25,.5,.75,1];
 
   return <section className="advanced-chart">
-    <header><div><small>PLAYER PRICE</small><strong>{number(active?.price||0)} C</strong><span className={change>=0?'positive':'negative'}>{change>=0?'+':''}{number(change)} · {percent>=0?'+':''}{percent.toFixed(2)}%</span></div><div className="chart-controls"><div>{(['1D','1W','1M','ALL'] as ChartRange[]).map(value=><button className={range===value?'active':''} onClick={()=>onRangeChange(value)} key={value}>{value}</button>)}</div><div><button className={mode==='area'?'active':''} onClick={()=>setMode('area')}>AREA</button><button className={mode==='line'?'active':''} onClick={()=>setMode('line')}>LINE</button></div></div></header>
-    <div className="chart-summary"><span>OPEN <b>{number(first)} C</b></span><span>HIGH <b>{number(high)} C</b></span><span>LOW <b>{number(low)} C</b></span><span>LAST <b>{number(current)} C</b></span></div>
-    <div className="chart-canvas">{loading?<div className="chart-loading">Loading price history…</div>:<svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" onPointerMove={move} onPointerLeave={()=>setHovered(undefined)} role="img" aria-label="Player price history">
+    <header><div><small>{t('chartPrice')}</small><strong>{number(active?.price||0)} C</strong><span className={change>=0?'positive':'negative'}>{change>=0?'+':''}{number(change)} · {percent>=0?'+':''}{percent.toFixed(2)}%</span></div><div className="chart-controls"><div>{ranges.map(item=><button className={range===item.id?'active':''} onClick={()=>onRangeChange(item.id)} key={item.id}>{item.label}</button>)}</div><div><button className={mode==='area'?'active':''} onClick={()=>setMode('area')}>{t('chartArea')}</button><button className={mode==='line'?'active':''} onClick={()=>setMode('line')}>{t('chartLine')}</button></div></div></header>
+    <div className="chart-summary"><span>{t('chartOpen')} <b>{number(first)} C</b></span><span>{t('chartHigh')} <b>{number(high)} C</b></span><span>{t('chartLow')} <b>{number(low)} C</b></span><span>{t('chartLast')} <b>{number(current)} C</b></span></div>
+    <div className="chart-canvas">{loading?<div className="chart-loading">{t('chartLoading')}</div>:<svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" onPointerMove={move} onPointerLeave={()=>setHovered(undefined)} role="img" aria-label={t('chartPrice')}>
       <defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#62e7ff" stopOpacity=".38"/><stop offset="1" stopColor="#62e7ff" stopOpacity="0"/></linearGradient></defs>
       {ticks.map(tick=>{const y=TOP+tick*(HEIGHT-TOP-BOTTOM);const value=chart.max-tick*(chart.max-chart.min);return <g key={tick}><line className="chart-gridline" x1={LEFT} x2={WIDTH-RIGHT} y1={y} y2={y}/><text className="chart-axis" x={LEFT-8} y={y+4} textAnchor="end">{number(value)}</text></g>})}
       {mode==='area'&&<polygon className="chart-area" points={chart.area}/>}<polyline className="chart-line" points={chart.line}/>
       {[chart.start,(chart.start+chart.end)/2,chart.end].map((value,index)=><text className="chart-axis" key={index} x={[LEFT,(LEFT+WIDTH-RIGHT)/2,WIDTH-RIGHT][index]} y={HEIGHT-8} textAnchor={(['start','middle','end'] as const)[index]}>{date(value)}</text>)}
       {active&&<g><line className="chart-crosshair" x1={active.x} x2={active.x} y1={TOP} y2={HEIGHT-BOTTOM}/><circle className="chart-dot" cx={active.x} cy={active.y} r="5"/></g>}
     </svg>}{active&&hovered!=null&&<div className="chart-tooltip" style={{left:`${active.x/WIDTH*100}%`,top:`${active.y/HEIGHT*100}%`}}><b>{number(active.price)} C</b><span>{new Date(active.at).toLocaleString(locale)}</span></div>}</div>
-    <p className="chart-caption">Prices change only when competitive form changes. Flat sections are real unchanged values; no synthetic volume or candles.</p>
+    <p className="chart-caption">{t('chartCaption')}</p>
   </section>;
 }

@@ -49,7 +49,7 @@ does — and never restricts it.
 ## Membership decay
 
 Membership decays on time, not on absence from one crawl. A player leaves after
-`POOL_GRACE_DAYS` (180) without appearing, and **only a full sync may deactivate**.
+`POOL_GRACE_DAYS` (30) without appearing, and **only a full sync may deactivate**.
 
 This is the fix for a live incident: the import ran incrementally every 15 minutes over ~6 windows
 and deactivated everyone missing from that run, leaving 1,036 active players of 5,264, with Division
@@ -126,7 +126,7 @@ because the results sync only re-crawls the last 14 days while intake looks back
 
 Two ways out, both only on a full sync:
 
-- **Decay** - `POOL_GRACE_DAYS` (180) without appearing in an import.
+- **Decay** - `POOL_GRACE_DAYS` (30) without appearing in an import; `last_seen_at` is the end of the window the player last qualified in.
 - **Legacy sweep** - entries written by the importer before tiers existed, identified by its own
   `Top 100 · ` note prefix. They were chosen by rules we no longer stand behind, including regions
   that are no longer synced and whose players can never score again, so waiting out the grace period

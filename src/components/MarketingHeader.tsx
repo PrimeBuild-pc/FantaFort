@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useGame } from '@/context/GameContext';
 import { useLocale } from '@/context/LocaleContext';
 import { locales, type Locale } from '@/lib/i18n';
 import { marketingPath } from '@/lib/marketing';
+import { useSignedInHint } from '@/lib/session-hint';
 
 const labels: Record<Locale, { nav:string; how:string; players:string; events:string; ranking:string; login:string; signup:string; account:string }> = {
   en:{nav:'Public navigation',how:'How it works',players:'Players',events:'Tournaments',ranking:'Leaderboard',login:'Sign in',signup:'Create account',account:'Open game'},
@@ -17,7 +17,7 @@ const labels: Record<Locale, { nav:string; how:string; players:string; events:st
 
 export default function MarketingHeader({ locale }: { locale: Locale }) {
   const text = labels[locale];
-  const { loading, userId, profile } = useGame();
+  const signedIn = useSignedInHint();
   const { setLocale } = useLocale();
   // Only home and how-it-works exist in every language; other pages switch to the localized home.
   const localizedPath = usePathname().replace(/^\/(?:it|es|de|fr)(?=\/|$)/, '') === '/how-it-works' ? '/how-it-works' : '';
@@ -26,12 +26,12 @@ export default function MarketingHeader({ locale }: { locale: Locale }) {
     <nav aria-label={text.nav}>
       <Link href={marketingPath(locale, '/how-it-works')}>{text.how}</Link>
       <Link href="/players">{text.players}</Link>
-      {userId && <Link href="/tournaments">{text.events}</Link>}
+      {signedIn && <Link href="/tournaments">{text.events}</Link>}
       <Link href="/leaderboard">{text.ranking}</Link>
     </nav>
     <div className="marketing-languages" aria-label="Language">{locales.map(item=><Link href={marketingPath(item, localizedPath)} onClick={()=>setLocale(item)} hrefLang={item} lang={item} key={item} aria-current={item===locale?'page':undefined}>{item.toUpperCase()}</Link>)}</div>
-    {loading ? <span className="epic-button" aria-hidden="true">…</span> : userId
-      ? <Link href="/dashboard" className="epic-button">{profile?.username||text.account}</Link>
+    {signedIn
+      ? <Link href="/dashboard" className="epic-button">{text.account}</Link>
       : <div className="marketing-auth-actions"><Link href="/auth">{text.login}</Link><Link href="/auth?mode=signup" className="epic-button">{text.signup}</Link></div>}
   </header>;
 }

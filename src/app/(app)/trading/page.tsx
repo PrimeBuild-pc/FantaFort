@@ -1,0 +1,204 @@
+/* eslint-disable @next/next/no-img-element, react-hooks/set-state-in-effect */
+"use client";
+
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import Header from '@/components/Header';
+import FeedbackNotice from '@/components/FeedbackNotice';
+import TradingChart, { ChartRange, TradingPoint } from '@/components/TradingChart';
+import { useGame } from '@/context/GameContext';
+import { useLocale } from '@/context/LocaleContext';
+import { fetchMarketSummary, fetchPlayersByIds, MARKET_PAGE_SIZE, MarketSummary, searchMarketPlayers } from '@/lib/market-players';
+import { Player } from '@/lib/types';
+import { supabase } from '@/lib/supabase';
+
+type PriceChange = { old_price:number; new_price:number; changed_at:string };
+type TradeRow = { id:number|string; amount:number; type:string; metadata:Record<string,unknown>; created_at:string };
+type Sort = 'change'|'price'|'name';
+
+export default function TradingPage() {
+  const { accountPortfolio, accountBuyPlayer, accountSellPlayer, userId, loading, previewing } = useGame();
+  const { locale, t } = useLocale();
+  const [query,setQuery]=useState('');
+  const [selectedId,setSelectedId]=useState('');
+  const [watchlist,setWatchlist]=useState<Set<string>>(new Set());
+  const [filter,setFilter]=useState<'all'|'watchlist'|'portfolio'>('all');
+  const [sort,setSort]=useState<Sort>('change');
+  const [range,setRange]=useState<ChartRange>('1M');
+  const [history,setHistory]=useState<TradingPoint[]>([]);
+  const [historyLoading,setHistoryLoading]=useState(false);
+  const [lastSync,setLastSync]=useState<string>();
+  const [marketStale,setMarketStale]=useState(false);
+  const [trades,setTrades]=useState<TradeRow[]>([]);
+  const [side,setSide]=useState<'buy'|'sell'>('buy');
+  const [message,setMessage]=useState('');
+  const [pending,setPending]=useState(false);
+  const [page,setPage]=useState(1);
+  const [total,setTotal]=useState(0);
+  const [catalog,setCatalog]=useState<Player[]>([]);
+  const [pinned,setPinned]=useState<Player[]>([]);
+  const [extra,setExtra]=useState<Player|null>(null);
+  const [poolLoading,setPoolLoading]=useState(true);
+  const [summary,setSummary]=useState<MarketSummary>({listed:0,advancing:0,declining:0,averageMove:0,movers:[]});
+  const positions=useMemo(()=>new Map(accountPortfolio.positions.map(position=>[position.playerId,position])),[accountPortfolio.positions]);
+  const lookup=useMemo(()=>{
+    const map=new Map<string,Player>();
+    pinned.forEach(player=>map.set(player.id,player));
+    catalog.forEach(player=>map.set(player.id,player));
+    if(extra)map.set(extra.id,extra);
+    return map;
+  },[catalog,extra,pinned]);
+  const tableRows=useMemo(()=>{
+    if(filter==='all')return catalog;
+    return pinned.filter(player=>{
+      const matches=`${player.handle} ${player.realName||''} ${player.team||''}`.toLowerCase().includes(query.toLowerCase());
+      return matches&&(filter==='watchlist'?watchlist.has(player.id):positions.has(player.id));
+    }).sort((a,b)=>sort==='name'?a.handle.localeCompare(b.handle):sort==='price'?b.price-a.price:(b.priceChange||0)-(a.priceChange||0));
+  },[catalog,filter,pinned,positions,query,sort,watchlist]);
+  const picked=selectedId?lookup.get(selectedId):undefined;
+  const selected=picked||(!selectedId?tableRows[0]:undefined)||null;
+  const totalPages=Math.max(1,Math.ceil((filter==='all'?total:tableRows.length)/MARKET_PAGE_SIZE));
+  const position=selected?positions.get(selected.id):undefined;
+  const number=(value:number)=>new Intl.NumberFormat(locale,{maximumFractionDigits:1}).format(value);
+  const percent=(value:number,base:number)=>base?value/base*100:0;
+  const gainers=useMemo(()=>summary.movers.filter(mover=>mover.priceChange>0).slice(0,3),[summary.movers]);
+  const losers=useMemo(()=>summary.movers.filter(mover=>mover.priceChange<0).slice(0,3),[summary.movers]);
+  const advancing=summary.advancing;
+  const declining=summary.declining;
+  const averageMove=summary.averageMove;
+
+  // The browser holds a working slice, not the pool: the current search page plus the
+  // players the user actually owns or watches, so every panel still resolves locally.
+  useEffect(()=>{
+    if(!supabase)return;
+    const client=supabase;
+    let cancelled=false;
+    setPoolLoading(true);
+    const timer=setTimeout(async()=>{
+      try{
+        const pinnedIds=[...new Set([...accountPortfolio.positions.map(position=>position.playerId),...watchlist])];
+        const ownedIds=filter==='portfolio'?accountPortfolio.positions.map(position=>position.playerId):filter==='watchlist'?[...watchlist]:pinnedIds;
+        const [pageResult,owned,marketSummary]=await Promise.all([
+          filter==='all'?searchMarketPlayers(client,{search:query,page,pageSize:MARKET_PAGE_SIZE,sort}):Promise.resolve({players:[] as Player[],total:0}),
+          ownedIds.length?fetchPlayersByIds(client,ownedIds):Promise.resolve([]),
+          fetchMarketSummary(client),
+        ]);
+        if(cancelled)return;
+        setCatalog(filter==='all'?pageResult.players:[]);
+        setTotal(filter==='all'?pageResult.total:owned.length);
+        setPinned(owned);
+        setSummary(marketSummary);
+      }catch{
+        if(!cancelled){setCatalog([]);setPinned([]);}
+      }finally{
+        if(!cancelled)setPoolLoading(false);
+      }
+    },query?250:0);
+    return()=>{cancelled=true;clearTimeout(timer);};
+  },[accountPortfolio.positions,filter,page,query,sort,watchlist]);
+
+  useEffect(()=>{
+    if(!supabase||!selectedId)return;
+    if(catalog.some(player=>player.id===selectedId)||pinned.some(player=>player.id===selectedId)){setExtra(null);return;}
+    let cancelled=false;
+    fetchPlayersByIds(supabase,[selectedId]).then(rows=>{if(!cancelled)setExtra(rows[0]??null);}).catch(()=>undefined);
+    return()=>{cancelled=true};
+  },[catalog,pinned,selectedId]);
+
+  useEffect(()=>{
+    if(!supabase||!userId)return;
+    const now=new Date().toISOString();
+    Promise.all([
+      supabase.from('account_watchlist').select('player_id').eq('user_id',userId),
+      supabase.from('market_state').select('repriced_at').maybeSingle(),
+      supabase.rpc('get_wallet_history',{page_index:0}),
+      supabase.from('tournaments').select('window_id').lte('starts_at',now).gte('ends_at',now).limit(1),
+    ]).then(([watch,sync,ledger,live])=>{
+      setWatchlist(new Set((watch.data||[]).map(row=>row.player_id)));
+      setLastSync(sync.data?.repriced_at);
+      const freshnessMinutes=(live.data||[]).length?30:120;
+      setMarketStale(!sync.data?.repriced_at||Date.now()-Date.parse(sync.data.repriced_at)>freshnessMinutes*60000);
+      setTrades(((ledger.data||[]) as TradeRow[]).filter(row=>row.type==='trade_buy'||row.type==='trade_sell').slice(0,8));
+    });
+  },[userId]);
+
+  useEffect(()=>{
+    if(!supabase||!selected)return;
+    let active=true;setHistoryLoading(true);
+    const now=new Date();
+    const start=range==='1D'?new Date(now.getTime()-86400000):range==='1W'?new Date(now.getTime()-7*86400000):range==='1M'?new Date(now.getTime()-30*86400000):null;
+    const changesQuery=supabase.from('player_price_history').select('old_price,new_price,changed_at').eq('player_id',selected.id).order('changed_at',{ascending:true}).limit(500);
+    const changesPromise=start?changesQuery.gte('changed_at',start.toISOString()):changesQuery;
+    const anchorPromise=start?supabase.from('player_price_history').select('new_price,changed_at').eq('player_id',selected.id).lt('changed_at',start.toISOString()).order('changed_at',{ascending:false}).limit(1).maybeSingle():Promise.resolve({data:null,error:null});
+    Promise.all([changesPromise,anchorPromise]).then(([changesResult,anchorResult])=>{
+      if(!active)return;
+      const changes=(changesResult.data||[]) as PriceChange[];
+      const points:TradingPoint[]=[];
+      if(start){
+        const anchor=(anchorResult.data as {new_price:number}|null)?.new_price??changes[0]?.old_price;
+        if(anchor!=null)points.push({at:start.toISOString(),price:anchor});
+      }else if(changes[0]) points.push({at:new Date(Date.parse(changes[0].changed_at)-1).toISOString(),price:changes[0].old_price});
+      changes.forEach(change=>points.push({at:change.changed_at,price:change.new_price}));
+      points.push({at:now.toISOString(),price:selected.price});
+      setHistory(points);setHistoryLoading(false);
+    });
+    return()=>{active=false};
+  },[range,selected]);
+
+  useEffect(()=>{setSide(position?'sell':'buy');},[position,selected?.id]);
+
+  useEffect(()=>{
+    if(!selectedId||!window.matchMedia('(max-width: 1100px)').matches)return;
+    const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    document.getElementById('order-ticket')?.scrollIntoView({behavior:reduce?'auto':'smooth',block:'start'});
+  },[selectedId]);
+
+  const executeTrade=async()=>{
+    if(!selected)return;
+    const selling=side==='sell';
+    if(selling&&!position)return setMessage(t('noPosition'));
+    const value=selling?Math.floor(selected.price*.95):selected.price;
+    if(!window.confirm(`${selling?t('confirmSale'):t('confirmBuy')} ${value.toLocaleString(locale)} C?`))return;
+    setPending(true);setMessage('');
+    const error=selling?await accountSellPlayer(selected.id):await accountBuyPlayer(selected.id);
+    setMessage(error||'✓');setPending(false);
+    if(!error){
+      const row:TradeRow={id:crypto.randomUUID(),amount:selling?value:-value,type:selling?'trade_sell':'trade_buy',metadata:{handle:selected.handle},created_at:new Date().toISOString()};
+      setTrades(current=>[row,...current].slice(0,8));
+    }
+  };
+  const toggleWatch=async()=>{
+    if(previewing)return setMessage(t('devPreviewNote'));
+    if(!supabase||!userId||!selected)return;
+    const watched=watchlist.has(selected.id);
+    const result=watched?await supabase.from('account_watchlist').delete().eq('user_id',userId).eq('player_id',selected.id):await supabase.from('account_watchlist').insert({user_id:userId,player_id:selected.id});
+    if(result.error)return setMessage(result.error.message);
+    setWatchlist(current=>{const next=new Set(current);if(watched)next.delete(selected.id);else next.add(selected.id);return next;});
+  };
+  const selectForTrade=(player:Player,nextSide?:'buy'|'sell')=>{setSelectedId(player.id);if(nextSide)setSide(nextSide);};
+  const tradeValue=side==='sell'?Math.floor((selected?.price||0)*.95):selected?.price||0;
+  const balanceAfter=side==='sell'?accountPortfolio.balance+tradeValue:accountPortfolio.balance-tradeValue;
+
+  if(loading||poolLoading&&!catalog.length&&!pinned.length)return <div className="app-shell"><Header/><main className="container page-content"><p className="notice" aria-busy="true">{t('loading')}</p></main></div>;
+  if(!userId)return <div className="app-shell"><Header/><main className="container page-content"><div className="empty-state"><h2>{t('signIn')}</h2><Link href="/auth" className="epic-button">{t('login')}</Link></div></main></div>;
+  return <div className="app-shell"><Header/><main className="container page-content trading-dashboard">
+    <section className="trading-hero"><div><div className="eyebrow">{t('exchangeEyebrow')}</div><h1>{t('trading')}</h1><p>{t('tradingLead')}</p><small className="form-hint">{t('virtualCoinsNotice')}</small></div><div className={`market-clock ${marketStale?'stale':''}`}><small>{t('marketStatus')}</small><b>{marketStale?t('dataStale'):t('marketOnline')}</b><span>{lastSync?`${t('updated')} ${new Date(lastSync).toLocaleString(locale)}`:'—'}</span></div></section>
+    <FeedbackNotice message={message}/>
+    <section className="trading-rules"><div><b>{t('tradingOneCard')}</b></div><div><b>{t('tradingSpread')}</b></div><div><b><Link href="/market">{t('tradingNotLeague')}</Link></b></div></section>
+    <section className="portfolio-strip finance-summary"><div><small>{t('available')}</small><b>{number(accountPortfolio.balance)} C</b></div><div><small>{t('invested')}</small><b>{number(accountPortfolio.holdingsValue)} C</b></div><div><small>{t('locked')}</small><b>{number(accountPortfolio.lockedBalance)} C</b></div><div><small>{t('totalEquity')}</small><b>{number(accountPortfolio.totalEquity)} C</b></div><div className={accountPortfolio.dailyPnl>=0?'positive':'negative'}><small>{t('tradingDay')}</small><b>{accountPortfolio.dailyPnl>=0?'+':''}{number(accountPortfolio.dailyPnl)} C</b></div><div className={accountPortfolio.totalPnl>=0?'positive':'negative'}><small>{t('tradingTotal')}</small><b>{accountPortfolio.totalPnl>=0?'+':''}{number(accountPortfolio.totalPnl)} C</b></div><Link href="/wallet" className="epic-button secondary">{t('wallet')}</Link></section>
+
+    <div className="trading-work">
+      <section className="exchange-list epic-panel"><div className="market-toolbar advanced"><label className="search-box"><span>⌕</span><input value={query} maxLength={80} onChange={event=>{setQuery(event.target.value);setPage(1);}} placeholder={t('searchPlayers')} aria-label={t('searchPlayers')}/></label><div className="filter-tabs"><button className={filter==='all'?'active':''} onClick={()=>{setFilter('all');setPage(1);}}>{t('all')}</button><button className={filter==='watchlist'?'active':''} onClick={()=>{setFilter('watchlist');setPage(1);}}>★ {t('watchlist')}</button><button className={filter==='portfolio'?'active':''} onClick={()=>{setFilter('portfolio');setPage(1);}}>{t('portfolio')}</button></div><label>{t('sort')}<select value={sort} onChange={event=>{setSort(event.target.value as Sort);setPage(1);}}><option value="change">{t('movement')}</option><option value="price">{t('price')}</option><option value="name">A–Z</option></select></label></div><div className="trade-table"><div className="trade-head"><span>{t('player')}</span><span>{t('price')}</span><span title={t('pointsPerGame')}>{t('form')}</span><span>{t('movement')}</span><span>{t('position')}</span></div>{tableRows.map(player=>{const held=positions.get(player.id);return <button className={selected?.id===player.id?'selected':''} aria-pressed={selected?.id===player.id} key={player.id} onClick={()=>setSelectedId(player.id)}><span><i className={`rarity-dot ${player.rarity}`}/><strong>{player.handle}</strong><small>{player.team||'—'}</small></span><b>{number(player.price)} C</b><span>{number(player.pointsPerMatch||0)}</span><em className={(player.priceChange||0)>=0?'positive':'negative'}>{(player.priceChange||0)>=0?'+':''}{number(player.priceChange||0)}</em><span>{held?`${held.pnl>=0?'+':''}${number(held.pnl)} C`:'—'}</span></button>})}{!tableRows.length&&<p className="notice">{t('noMarketMatches')}</p>}</div>{filter==='all'&&<nav className="market-pagination" aria-label={t('marketPages')}><button disabled={page<=1} onClick={()=>setPage(value=>value-1)}>‹ <span>{t('previousPage')}</span></button><span aria-live="polite">{t('page')} {Math.min(page,totalPages)}/{totalPages}</span><button disabled={page>=totalPages} onClick={()=>setPage(value=>value+1)}><span>{t('nextPage')}</span> ›</button></nav>}</section>
+      {selected?<aside className="order-ticket epic-panel" id="order-ticket"><div className="eyebrow">{t('orderTicket')}</div><h2>{selected.handle}</h2><p className="form-hint">{selected.team||'—'}</p><div className="order-tabs"><button className={side==='buy'?'active':''} onClick={()=>setSide('buy')}>{t('purchase')}</button><button className={side==='sell'?'active':''} onClick={()=>setSide('sell')}>{t('sell')}</button></div><div className="order-quote"><span><small>{t('marketPrice')}</small><b>{number(selected.price)} C</b></span><span><small>{t('pointsPerGame')}</small><b>{number(selected.pointsPerMatch||0)}</b></span>{side==='sell'&&<span><small>{t('spread')}</small><b>-5%</b></span>}<span><small>{side==='sell'?t('saleValue'):t('orderCost')}</small><b>{number(tradeValue)} C</b></span></div><div className="order-balance"><p><span>{t('available')}</span><b>{number(accountPortfolio.balance)} C</b></p><p><span>{t('afterOrder')}</span><b className={balanceAfter<0?'negative':''}>{number(balanceAfter)} C</b></p>{position&&<p><span>{t('boughtAt')}</span><b>{number(position.acquiredPrice)} C</b></p>}</div>{side==='sell'&&!position&&<p className="notice">{t('noPosition')}</p>}{side==='buy'&&position&&<p className="notice">{t('oneCardLimit')}</p>}{side==='buy'&&!position&&accountPortfolio.balance<tradeValue&&<p className="notice">{t('notEnough')}</p>}{marketStale&&<p className="notice">{t('dataStale')}</p>}<button className={`epic-button order-submit ${side}`} disabled={pending||marketStale||side==='buy'&&(!!position||accountPortfolio.balance<tradeValue)||side==='sell'&&!position} onClick={executeTrade}>{pending?t('wait'):`${side==='buy'?t('purchase'):t('sell')} ${selected.handle} · ${number(tradeValue)} C`}</button><small className="order-disclaimer">{t('serverPriceNotice')}</small><Link href="/market">{t('tradingNotLeague')}</Link></aside>:<aside className="order-ticket epic-panel" id="order-ticket"><p className="notice">{t('pickToTrade')}</p></aside>}
+    </div>
+
+    {selected&&<section className="chart-panel epic-panel"><header className="asset-header"><div className="asset-identity">{selected.photoUrl?<img src={selected.photoUrl} alt=""/>:<i>{selected.handle.slice(0,2)}</i>}<div><div className="eyebrow">{selected.team||'—'}</div><h2>{selected.handle}</h2><span>{position?`${t('owned')} · ${position.pnl>=0?'+':''}${number(position.pnl)} C`:t('notOwned')}</span></div></div><button className="watch-button" onClick={toggleWatch} aria-pressed={watchlist.has(selected.id)} aria-label={t('watchlist')}>{watchlist.has(selected.id)?'★':'☆'}</button></header><TradingChart points={history} range={range} onRangeChange={setRange} locale={locale} loading={historyLoading}/><div className="asset-fundamentals"><span><small>{t('marketPrice')}</small><b>{number(selected.price)} C</b></span><span><small>{t('pointsPerGame')}</small><b>{selected.pointsPerMatch||0}</b></span><span><small>{t('winRate')}</small><b>{selected.winRate||0}%</b></span><span><small>{t('avgPlacement')}</small><b>{selected.averagePlacement?`#${selected.averagePlacement}`:'—'}</b></span><span><small>{t('recentTeammates')}</small><b>{selected.teammates?.slice(0,2).map(player=>player.handle).join(' · ')||'—'}</b></span></div></section>}
+
+    <section className="market-overview"><div><small>{t('listedPlayers')}</small><b>{summary.listed}</b></div><div className="positive"><small>{t('advancing')}</small><b>{advancing}</b></div><div className="negative"><small>{t('declining')}</small><b>{declining}</b></div><div className={averageMove>=0?'positive':'negative'}><small>{t('averageMove')}</small><b>{averageMove>=0?'+':''}{number(averageMove)} C</b></div><div className="mover-tape"><small>{t('topMovers')}</small><span>{gainers.map(player=><button key={player.id} onClick={()=>setSelectedId(player.id)}>{player.handle} <em className="positive">+{number(player.priceChange||0)}</em></button>)}{losers.map(player=><button key={player.id} onClick={()=>setSelectedId(player.id)}>{player.handle} <em className="negative">{number(player.priceChange||0)}</em></button>)}</span></div></section>
+
+    <div className="trading-lower"><section className="epic-panel positions-panel"><div className="section-heading"><div><div className="eyebrow">{t('holdingsLabel')}</div><h2>{t('portfolio')}</h2></div><span>{accountPortfolio.positions.length} {t('positions')}</span></div>{accountPortfolio.positions.length?<div className="positions-table"><div className="positions-head"><span>{t('player')}</span><span>{t('value')}</span><span>{t('averageCost')}</span><span>{t('tradingDay')}</span><span>{t('tradingTotal')}</span><span/></div>{accountPortfolio.positions.map(held=>{const player=lookup.get(held.playerId);return <div key={held.playerId}><button className="position-asset" onClick={()=>player&&setSelectedId(player.id)}><strong>{held.handle}</strong><small>{player?.team||'—'}</small></button><b>{number(held.currentPrice)} C</b><span>{number(held.acquiredPrice)} C</span><span className={(held.dailyChange||0)>=0?'positive':'negative'}>{(held.dailyChange||0)>=0?'+':''}{number(held.dailyChange||0)}</span><span className={held.pnl>=0?'positive':'negative'}>{held.pnl>=0?'+':''}{number(held.pnl)} C<br/><small>{percent(held.pnl,held.acquiredPrice).toFixed(1)}%</small></span><button className="sell-now" onClick={()=>player&&selectForTrade(player,'sell')}>{t('sell')}</button></div>})}</div>:<p className="notice">{t('tradingEmpty')}</p>}</section>
+      <aside className="epic-panel allocation-panel"><div className="eyebrow">{t('allocation')}</div><h2>{t('allocation')}</h2>{accountPortfolio.positions.slice(0,8).map(held=><div key={held.playerId}><span><b>{held.handle}</b><small>{percent(held.currentPrice,accountPortfolio.holdingsValue).toFixed(1)}%</small></span><i><em style={{width:`${percent(held.currentPrice,accountPortfolio.holdingsValue)}%`}}/></i></div>)}{!accountPortfolio.positions.length&&<p>—</p>}<hr/><div className="pnl-breakdown"><p><span>{t('realizedPnl')}</span><b className={accountPortfolio.realizedPnl>=0?'positive':'negative'}>{accountPortfolio.realizedPnl>=0?'+':''}{number(accountPortfolio.realizedPnl)} C</b></p><p><span>{t('unrealizedPnl')}</span><b className={accountPortfolio.unrealizedPnl>=0?'positive':'negative'}>{accountPortfolio.unrealizedPnl>=0?'+':''}{number(accountPortfolio.unrealizedPnl)} C</b></p></div></aside></div>
+
+    <section className="epic-panel activity-panel"><div className="eyebrow">{t('activityLabel')}</div><h2>{t('recentTrades')}</h2>{trades.length?trades.map(trade=><div key={trade.id}><span><b>{trade.type==='trade_buy'?t('purchase'):t('sell')} · {String(trade.metadata?.handle||'—')}</b><small>{new Date(trade.created_at).toLocaleString(locale)}</small></span><strong className={trade.amount>=0?'positive':'negative'}>{trade.amount>0?'+':''}{number(trade.amount)} C</strong></div>):<p className="notice">{t('noTrades')}</p>}<Link href="/wallet" className="epic-button secondary">{t('allTransactions')}</Link></section>
+  </main></div>;
+}

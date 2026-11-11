@@ -15,7 +15,7 @@ Status: implementation plan. Base branch: `main`. Security baseline: `docs/SECUR
 
 ### Community and communication consent
 
-The official community URL is <https://discord.gg/V3m8pDe3wz>. It is exposed as a safe external link in public and authenticated footers, the marketing home, account settings and a dismissible in-app beta notice. No iframe, widget, Discord OAuth or role synchronization is introduced.
+The official community URL is <https://discord.gg/uBgMgAZ8q8>. It is exposed as a safe external link in public and authenticated footers, the marketing home, account settings and a dismissible in-app beta notice. No iframe, widget, Discord OAuth or role synchronization is introduced.
 
 `profiles.community_email_opt_in` defaults to `false`. Opt-in, opt-out, consent version and consent source are recorded atomically through an owner-only RPC; the checkbox is never preselected and consent is independent of Terms/Privacy. No email is sent in this release.
 

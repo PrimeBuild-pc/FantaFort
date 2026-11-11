@@ -78,6 +78,23 @@ and not occasional.
 | Recipients | The mailbox provider; Discord for general support tickets only |
 | Retention | As long as needed to handle the request and evidence its outcome |
 
+## A6 — Aggregated interest statistics
+
+| | |
+|---|---|
+| Purpose | Measure interest in the project (registrations, weekly/monthly activity, leagues, languages) to present to Epic Games or other potential partners |
+| Data subjects | Registered users (input only; the output is anonymous) |
+| Categories | Counts computed in the database by `admin_interest_report()`; no identifier leaves it. Administrators, suspended, banned, deleted and synthetic test accounts are excluded |
+| Legal basis | Art. 6(1)(f) — legitimate interest in evaluating the project; the shared output is anonymous and outside the GDPR |
+| Recipients | Administrator only; aggregated figures may be shared with Epic Games or partners |
+| Retention | Aggregates may be kept after the project closes; they contain no personal data |
+
+## Project closure
+
+The public alpha is time-limited (expected end: October 2027, announced at least 30 days
+in advance). At closure every account and all personal data in A1–A5 are deleted within 30
+days; encrypted backups expire within the following 14 days. Only A6 aggregates remain.
+
 ## Processors (art. 28)
 
 | Processor | Role | How the DPA is put in force |

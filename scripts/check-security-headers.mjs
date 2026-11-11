@@ -16,7 +16,8 @@ for (const value of [enforced, reportOnly]) {
   assert.ok(!directives['connect-src'].has('https://*.supabase.co'));
 }
 assert.match(enforced, /script-src [^;]*'unsafe-inline'/);
-assert.match(enforced, /style-src 'self' https:\/\/fonts\.googleapis\.com;/);
+assert.match(enforced, /style-src 'self';/);
+assert.doesNotMatch(enforced, /fonts\.(googleapis|gstatic)\.com/);
 assert.match(enforced, /style-src-attr 'unsafe-inline'/);
 assert.doesNotMatch(reportOnly, /'unsafe-inline'/);
 for (const key of ['strict-transport-security', 'referrer-policy', 'permissions-policy', 'x-content-type-options', 'x-frame-options', 'cross-origin-opener-policy']) assert.ok(headers[key]);

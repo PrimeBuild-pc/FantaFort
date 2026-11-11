@@ -6,8 +6,8 @@ const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseSocketOrigin = supabaseOrigin?.replace(/^http/, 'ws');
 const turnstileOrigin = 'https://challenges.cloudflare.com';
 const connectSources = ["'self'", supabaseOrigin, supabaseSocketOrigin, turnstileOrigin].filter(Boolean).join(' ');
-const csp = `default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'unsafe-inline' ${turnstileOrigin}; script-src-attr 'none'; frame-src ${turnstileOrigin}; style-src 'self' https://fonts.googleapis.com; style-src-elem 'self' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src ${connectSources}; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests`;
-const cspReportOnly = `default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' ${turnstileOrigin}; script-src-attr 'none'; frame-src ${turnstileOrigin}; style-src 'self' https://fonts.googleapis.com; style-src-attr 'none'; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src ${connectSources}; worker-src 'self' blob:; manifest-src 'self'`;
+const csp = `default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'unsafe-inline' ${turnstileOrigin}; script-src-attr 'none'; frame-src ${turnstileOrigin}; style-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src ${connectSources}; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests`;
+const cspReportOnly = `default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' ${turnstileOrigin}; script-src-attr 'none'; frame-src ${turnstileOrigin}; style-src 'self'; style-src-attr 'none'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src ${connectSources}; worker-src 'self' blob:; manifest-src 'self'`;
 
 const nextConfig: NextConfig = {
   turbopack: { root: process.cwd() },
@@ -19,7 +19,7 @@ const nextConfig: NextConfig = {
     permanent: true,
   })),
   headers: async () => [
-    ...['auth', 'dashboard/:path*', 'shop', 'trading', 'wallet', 'leagues/:path*', 'leaderboard', 'friends', 'notifications', 'account', 'admin', 'tournaments', 'api/:path*'].map(source => ({
+    ...['auth', 'dashboard/:path*', 'market/:path*', 'shop', 'trading', 'wallet', 'leagues/:path*', 'leaderboard', 'friends', 'notifications', 'account', 'admin', 'tournaments', 'api/:path*'].map(source => ({
       source: `/${source}`,
       headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
     })),
@@ -32,7 +32,7 @@ const nextConfig: NextConfig = {
       headers: [
         { key: 'Content-Security-Policy', value: csp },
         { key: 'Content-Security-Policy-Report-Only', value: cspReportOnly },
-        { key: 'Strict-Transport-Security', value: 'max-age=31536000' },
+        { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
         { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
         { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=()' },
         { key: 'X-Content-Type-Options', value: 'nosniff' },

@@ -5,7 +5,7 @@
   "license": "UNLICENSED",
   "repository": "https://github.com/PrimeBuild-pc/FantaFort",
   "engines": {
-    "node": ">=22 <25"
+    "node": ">=22.23.4 <23 || >=24.22.1 <25"
   },
   "scripts": {
     "dev": "next dev",
@@ -17,6 +17,7 @@
     "check:db": "node --env-file-if-exists=.env.local scripts/check-social.mjs",
     "check:community": "node --env-file-if-exists=.env.local scripts/check-community.mjs",
     "check:auth": "node --experimental-strip-types scripts/check-auth-redirect.mjs",
+    "check:weekend": "node --experimental-strip-types scripts/check-weekend.mjs",
     "check:admin": "node scripts/check-admin-security.mjs && node --experimental-strip-types scripts/check-admin-config.mjs && node --experimental-strip-types scripts/check-admin-jwt.mjs",
     "check:client-secrets": "node scripts/check-client-secrets.mjs",
     "check:headers": "node --experimental-strip-types scripts/check-security-headers.mjs",
@@ -28,9 +29,9 @@
     "sync:results": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/sync-fortnite.mjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.117.3",
-    "next": "^16.4.0",
-    "react": "19.3.0",
+    "@supabase/supabase-js": "^2.118.0",
+    "next": "^16.4.3",
+    "react": "19.3.1",
     "react-dom": "19.3.0"
   },
   "overrides": {
@@ -43,7 +44,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "^16.4.0",
+    "eslint-config-next": "^16.4.3",
     "typescript": "^6.0.3"
   }
 }

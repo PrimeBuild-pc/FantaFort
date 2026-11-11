@@ -144,7 +144,9 @@ for (const region of POOL_REGIONS) {
         const stamp = leaderboard.updatedAt || new Date().toISOString();
         teamRows.set(windowId + ':' + teamId, {
           window_id: windowId, team_id: teamId, rank: entry.rank, points: entry.pointsEarned,
-          percentile: entry.percentile ?? null, updated_at: stamp,
+          percentile: entry.percentile ?? null, updated_at: stamp, matches: history.length,
+          wins: history.filter(session => session.trackedStats?.VICTORY_ROYALE_STAT > 0).length,
+          team_eliminations: history.reduce((sum, session) => sum + (session.trackedStats?.TEAM_ELIMS_STAT_INDEX || 0), 0),
         });
         for (const account of visible) {
           if (!account.accountId || !account.username) continue;

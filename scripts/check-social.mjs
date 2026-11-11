@@ -203,6 +203,11 @@ try {
   const ownerBeforePrize = await wallet(userIds[0]);
   const friendBeforeLoss = await wallet(userIds[1]);
   ok(await owner.rpc('finish_league', { target_league:leagueId }));
+  // The paid-out standings are frozen: deleting the underlying results must not change them.
+  const frozen = ok(await friend.rpc('get_league_standings', { target_league:leagueId }));
+  const snapshot = ok(await admin.from('league_final_standings').select('winner_id,standings').eq('league_id', leagueId).single());
+  if (frozen.length !== dashboard.length || JSON.stringify(frozen) !== JSON.stringify(snapshot.standings)
+    || snapshot.winner_id !== frozen[0].user_id) throw new Error('League final standings were not frozen');
   const ownerAfterPrize = await wallet(userIds[0]);
   const friendAfterLoss = await wallet(userIds[1]);
   if (ownerAfterPrize.locked_balance !== 0 || ownerAfterPrize.balance !== ownerBeforePrize.balance + 1000) throw new Error('Winner stake payout failed');
@@ -292,14 +297,22 @@ try {
   }
   const ownerSession = ok(await owner.auth.getSession()).session;
   const ownerClaims = ok(await owner.auth.getClaims(ownerSession.access_token)).claims;
-  ok(await admin.from('admin_step_up_grants').insert({ token_hash:roleToken, admin_user_id:userIds[0], auth_session_id:ownerClaims.session_id, scope:'role', expires_at:new Date(Date.now() + 300000).toISOString() }));
+  ok(await admin.from('admin_step_up_grants').insert({ token_hash:roleToken, admin_user_id:userIds[0], auth_session_id:ownerClaims.session_id, scope:'role', target_user_id:userIds[1], expires_at:new Date(Date.now() + 300000).toISOString() }));
   const promotionRequest = crypto.randomUUID();
   if (!(await owner.rpc('admin_set_role', { target_user_id:userIds[1], requested_admin:true, action_reason:'Synthetic promotion guard check', action_request_id:promotionRequest, action_idempotency_key:`role:${promotionRequest}`, step_up_token_hash:roleToken })).error) throw new Error('Additional administrator guard failed');
   const adminCount = await admin.from('profiles').select('id', { count:'exact', head:true }).eq('is_admin',true);
   ok(adminCount);
   if (adminCount.count !== 1) throw new Error('Single administrator invariant failed');
   const friendWalletBefore = await wallet(userIds[1]);
-  ok(await admin.from('admin_step_up_grants').insert(economyTokens.map(value => ({ token_hash:value, admin_user_id:userIds[0], auth_session_id:ownerClaims.session_id, scope:'economy', expires_at:new Date(Date.now() + 300000).toISOString() }))));
+  // A grant minted for one user must not be spendable on another.
+  const crossTargetToken = tokenHash('economy-cross-target');
+  ok(await admin.from('admin_step_up_grants').insert({ token_hash:crossTargetToken, admin_user_id:userIds[0], auth_session_id:ownerClaims.session_id, scope:'economy', target_user_id:userIds[2], expires_at:new Date(Date.now() + 300000).toISOString() }));
+  const crossRequest = crypto.randomUUID();
+  if (!(await owner.rpc('admin_adjust_wallet', { target_user_id:userIds[1], adjustment:50, expected_balance:friendWalletBefore.balance,
+    action_reason:'Synthetic cross-target denial', external_reference:null, action_request_id:crossRequest, action_idempotency_key:`adjust:${crossRequest}`,
+    action_payload_fingerprint:adjustmentFingerprint(userIds[1],50,friendWalletBefore.balance,'Synthetic cross-target denial',null,crossRequest),
+    step_up_token_hash:crossTargetToken })).error) throw new Error('Economy grant for another user was accepted');
+  ok(await admin.from('admin_step_up_grants').insert(economyTokens.map(value => ({ token_hash:value, admin_user_id:userIds[0], auth_session_id:ownerClaims.session_id, scope:'economy', target_user_id:userIds[1], expires_at:new Date(Date.now() + 300000).toISOString() }))));
   const adjustmentReason = 'Synthetic concurrent adjustment';
   const adjustmentReference = 'local-check';
   const adjustmentRequests = [crypto.randomUUID(), crypto.randomUUID()];
@@ -434,6 +447,8 @@ try {
   if (new Set(batchRows.map(row => row.target_id)).size !== 2) throw new Error('Bulk audit rows did not name distinct targets');
   const bulkReplay = ok(await owner.rpc('admin_set_user_badges_bulk', bulkArgs));
   if (!bulkReplay.replayed) throw new Error('Bulk badge idempotency replay failed');
+  // Reusing the key for a different target set is a conflict, not a successful replay.
+  if (!(await owner.rpc('admin_set_user_badges_bulk', { ...bulkArgs, target_user_ids:[bulkTargets[0]] })).error) throw new Error('Bulk badge replay accepted a different target set');
 
   // Missing-player search: only accounts we actually hold results for, only inside
   // the rank the results sync reaches, and never one already carried in the market.
@@ -680,7 +695,7 @@ try {
     target_user_id:userIds[2], new_status:'suspended', action_reason:'Synthetic anonymization preparation',
     action_request_id:anonymizeSuspend, action_idempotency_key:`suspend:${anonymizeSuspend}`, step_up_token_hash:anonymizeStatusToken,
   }));
-  ok(await admin.from('admin_step_up_grants').insert({ token_hash:anonymizeToken, admin_user_id:userIds[0], auth_session_id:ownerClaims.session_id, scope:'anonymize', expires_at:new Date(Date.now() + 300000).toISOString() }));
+  ok(await admin.from('admin_step_up_grants').insert({ token_hash:anonymizeToken, admin_user_id:userIds[0], auth_session_id:ownerClaims.session_id, scope:'anonymize', target_user_id:userIds[2], expires_at:new Date(Date.now() + 300000).toISOString() }));
   const anonymizeImpact = ok(await owner.rpc('admin_preview_anonymization_impact', { target_user_id:userIds[2] }));
   if (!/^[a-f0-9]{32}$/.test(anonymizeImpact.fingerprint)) throw new Error('Anonymization impact fingerprint failed');
   const anonymizeRequest = crypto.randomUUID();

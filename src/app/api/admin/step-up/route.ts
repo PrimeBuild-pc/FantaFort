@@ -3,19 +3,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   adminBadgeMutationsEnabled,
   adminMutationsEnabled,
+  adminPlayerPoolMutationsEnabled,
   authorizeAdmin,
   rejectCrossOriginMutation,
   supabaseForToken,
 } from '@/lib/admin/server';
 
-const scopes = new Set(['role', 'economy', 'recovery', 'anonymize', 'account_status', 'session_revoke', 'badge']);
-const targetedScopes = new Set(['account_status', 'session_revoke', 'badge']);
+const scopes = new Set(['role', 'economy', 'recovery', 'anonymize', 'account_status', 'session_revoke', 'badge', 'market']);
+// Every scope that acts on a user is bound to that user; only market price edits are not.
+const targetedScopes = new Set(['role', 'economy', 'recovery', 'anonymize', 'account_status', 'session_revoke', 'badge']);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 // Each scope answers to exactly one capability; neither capability widens the other.
-const scopeEnabled = (scope: string) => scope === 'badge' ? adminBadgeMutationsEnabled() : adminMutationsEnabled();
+const scopeEnabled = (scope: string) => scope === 'badge' ? adminBadgeMutationsEnabled()
+  : scope === 'market' ? adminPlayerPoolMutationsEnabled() : adminMutationsEnabled();
 
 export async function POST(request: NextRequest) {
-  if (!adminMutationsEnabled() && !adminBadgeMutationsEnabled()) {
+  if (!adminMutationsEnabled() && !adminBadgeMutationsEnabled() && !adminPlayerPoolMutationsEnabled()) {
     return NextResponse.json({ error: 'Admin mutations disabled' }, { status: 404 });
   }
   const crossOrigin = rejectCrossOriginMutation(request);

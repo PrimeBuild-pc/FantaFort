@@ -4,6 +4,10 @@ import MarketingHome from '@/components/MarketingHome';
 import { homeCopy, isLocalizedLocale, localizedLocales } from '@/lib/marketing';
 
 const names = { it:'Fantasy Fortnite FNCS', es:'Fantasy de Fortnite y FNCS', de:'Fortnite Fantasy-Spiel mit FNCS', fr:'Fantasy Fortnite avec résultats FNCS' };
+// Search snippets get room for the full pitch; the on-page intro stays short.
+const descriptions: Partial<Record<keyof typeof names, string>> = {
+  it:'Fantasy league gratuita di Fortnite: crea una rosa di tre pro FNCS, sfida gli amici in una lega privata e fai punti con i risultati reali dei tornei.',
+};
 const alternates = { en:'/', it:'/it', es:'/es', de:'/de', fr:'/fr', 'x-default':'/' };
 
 export const dynamicParams = false;
@@ -14,7 +18,7 @@ export async function generateMetadata({params}:{params:Promise<{locale:string}>
   if(!isLocalizedLocale(locale)) return {};
   const copy=homeCopy[locale];
   return {
-    title:names[locale], description:copy.intro,
+    title:names[locale], description:descriptions[locale]||copy.intro,
     alternates:{canonical:`/${locale}`,languages:alternates},
     openGraph:{title:`${names[locale]} | FantaFort`,description:copy.intro,url:`/${locale}`,locale},
   };

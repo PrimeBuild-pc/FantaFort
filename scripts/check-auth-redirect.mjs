@@ -15,7 +15,7 @@ assert.equal(isDisposableEmailError({ code: 'disposable_email' }), true);
 assert.equal(isDisposableEmailError({ message: 'Disposable email addresses are not allowed.' }), true);
 assert.equal(isExistingSignup({ identities:[] }), true);
 assert.equal(isExistingSignup({ identities:[{}] }), false);
-const authPage = await readFile('src/app/auth/page.tsx', 'utf8');
+const authPage = await readFile('src/app/(app)/auth/page.tsx', 'utf8');
 assert.match(authPage, /emailRedirectTo:`\$\{window\.location\.origin\}\/auth`/);
 assert.match(authPage, /params\.get\('mode'\) === 'signup'/);
 assert.match(authPage, /redirectTo:`\$\{window\.location\.origin\}\/auth\?reset=1`/);
@@ -25,9 +25,15 @@ assert.match(authPage, /isExistingSignup\(result\.data\.user\)/);
 assert.match(authPage, /setRecoverAfterSignup\(true\)/);
 assert.match(authPage, /NEXT_PUBLIC_TURNSTILE_SITE_KEY/);
 const providers = await readFile('src/app/providers.tsx', 'utf8');
-assert.match(providers, /if \(!loading && userId\) router\.replace\('\/dashboard'\)/);
-assert.match(providers, /"\/privacy", "\/support", "\/terms"/);
+assert.match(providers, /if \(signedIn\) router\.replace\('\/dashboard'\)/);
 assert.match(providers, /pathname === '\/'/);
+assert.doesNotMatch(providers, /GameProvider/, 'public pages must not load the game provider');
+// Legal and marketing pages sit outside the authenticated (app) group, so they never need login.
+for (const page of ['privacy', 'terms', 'support', 'credits', 'cookies', 'about', 'methodology', 'players', 'guides']) {
+  await readFile(`src/app/${page}/page.tsx`, 'utf8');
+}
+const shell = await readFile('src/app/(app)/shell.tsx', 'utf8');
+assert.match(shell, /const publicRoutes = new Set\(\["\/auth", "\/leaderboard"\]\)/);
 const turnstile = await readFile('src/components/Turnstile.tsx', 'utf8');
 assert.match(turnstile, /challenges\.cloudflare\.com\/turnstile/);
 assert.match(turnstile, /'expired-callback'/);
