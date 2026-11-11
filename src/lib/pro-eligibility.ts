@@ -27,7 +27,7 @@ export function isCompetitiveEvent(eventId: string): boolean {
   // Epic publishes the 2026 FNCS Globals under the opaque Manneken Pis event id.
   const id = eventId.toLowerCase();
   if (EXCLUDED_MODES.test(id)) return false;
-  if (/division[45]/.test(id)) return false;
+  if (/division[45]|championtealknightfncscup/.test(id)) return false;
   return /fncs|victorycup|cashcup|escargo_official|mannekenpis_official/.test(id);
 }
 
