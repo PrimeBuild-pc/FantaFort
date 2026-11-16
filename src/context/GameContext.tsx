@@ -248,7 +248,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (userId && !previewing) await loadCloudGame(userId, id);
   }, [loadCloudGame, previewing, userId]);
   const signOut = async () => {
-    if (previewing) { clearDevPreview(); window.location.assign('/auth'); return; }
+    if (previewing) {
+      clearDevPreview();
+      // A full reload clears preview-only provider state after removing the preview flag.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.assign('/auth');
+      return;
+    }
     if (supabase) await supabase.auth.signOut();
   };
 
