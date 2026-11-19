@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import BadgeList from '@/components/BadgeList';
 import Emblem from '@/components/Emblem';
 import { lineupCopy } from '@/lib/lineup';
@@ -21,17 +21,22 @@ type Props = {
 export default function LineupDrawer({ locale, username, lineup, error, onClose }: Props) {
   const text = lineupCopy[locale];
   const closeRef = useRef<HTMLButtonElement>(null);
+  // Closing plays the exit animation first; the parent unmounts us when it ends.
+  const [closing, setClosing] = useState(false);
+  const close = () => setClosing(true);
   const number = (value:number) => new Intl.NumberFormat(locale).format(value);
 
+  // Runs once: focusing on every parent re-render would steal focus from inside the drawer.
   useEffect(() => {
     closeRef.current?.focus();
-    const onKey = (event:KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    const onKey = (event:KeyboardEvent) => { if (event.key === 'Escape') setClosing(true); };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, []);
 
-  return <div className="lineup-backdrop" onClick={onClose}>
-    <aside className="lineup-drawer" role="dialog" aria-modal="true" aria-label={`${text.title} · ${username}`} onClick={event => event.stopPropagation()}>
+  return <div className={`lineup-backdrop${closing ? ' closing' : ''}`} onClick={close}>
+    <aside className="lineup-drawer" role="dialog" aria-modal="true" aria-label={`${text.title} · ${username}`} onClick={event => event.stopPropagation()}
+      onAnimationEnd={event => { if (closing && event.target === event.currentTarget) onClose(); }}>
       <header className="lineup-drawer-head">
         <Emblem username={lineup?.username || username} style={lineup?.avatarStyle} className="lineup-emblem" />
         <div>
@@ -39,7 +44,7 @@ export default function LineupDrawer({ locale, username, lineup, error, onClose 
           <h2 className={`name-${lineup?.nameStyle || 'default'}`}>{lineup?.username || username}</h2>
           {lineup && <BadgeList badges={lineup.badges} compact />}
         </div>
-        <button ref={closeRef} className="epic-button secondary" onClick={onClose}>{text.close}</button>
+        <button ref={closeRef} className="epic-button secondary" onClick={close}>{text.close}</button>
       </header>
       {lineup && <div className="lineup-summary">
         <span><small>{text.rank}</small><b>#{lineup.rank}</b></span>
