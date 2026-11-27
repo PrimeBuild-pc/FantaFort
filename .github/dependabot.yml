@@ -11,6 +11,12 @@ updates:
     open-pull-requests-limit: 5
     cooldown:
       default-days: 7
+    # One minor/patch PR per run: the main ruleset requires an up-to-date branch,
+    # so a second auto-merge PR would sit "behind" after the first one lands.
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
     ignore:
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
@@ -29,9 +35,13 @@ updates:
       codeql-action:
         patterns:
           - "github/codeql-action*"
+      actions-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
     schedule:
       interval: weekly
-      day: monday
+      # Not Monday: keeps it from landing beside the npm PR and going behind.
+      day: thursday
       time: "06:15"
       timezone: Europe/Rome
     open-pull-requests-limit: 5
