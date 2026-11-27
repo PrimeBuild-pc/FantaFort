@@ -1,6 +1,6 @@
 # Proposed admin-data retention policy
 
-Status: proposal only. It is not approved for production and migration `190009` does not delete historical records.
+Status: partly enforced. Migration `202611270001_operational_log_retention.sql` schedules `purge_expired_operational_logs()` daily with pg_cron: `app_errors` detail older than 30 days (no aggregate yet), audit rows older than 24 months (row delete guarded by the trigger, not partitions), expired step-up grants and invite-preview windows. The partitioning, aggregate and idempotency designs below remain proposals.
 
 ## Retention matrix
 

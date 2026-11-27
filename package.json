@@ -25,6 +25,7 @@
     "check:seo": "node scripts/check-seo.mjs",
     "check:pool": "node --experimental-strip-types scripts/check-player-pool.mjs",
     "sync:players": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/sync-player-pool.mjs --full",
+    "privacy:deletions": "node --env-file-if-exists=.env.local scripts/process-privacy-deletions.mjs",
     "import:results": "node --env-file-if-exists=.env.local scripts/import-results.mjs",
     "sync:results": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/sync-fortnite.mjs"
   },
