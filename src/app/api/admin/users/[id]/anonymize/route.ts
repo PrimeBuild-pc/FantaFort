@@ -78,7 +78,8 @@ export async function POST(request: NextRequest, context: { params:Promise<{ id:
   const authUpdate = await service.auth.admin.updateUserById(id, {
     email:`anonymized-${randomBytes(16).toString('hex')}@example.invalid`,
     ...(hasPhone ? { phone:`+1555010${randomInt(10000).toString().padStart(4,'0')}`, phone_confirm:true } : {}),
-    password:randomBytes(32).toString('hex'),
+    // Suffix satisfies the Auth policy requiring every character class.
+    password:`${randomBytes(32).toString('base64url')}aA1!`,
     email_confirm:true,
     user_metadata:{ ...clearedMetadata, username:'anonymized', test_marker:'ANONYMIZED' },
     ban_duration:'876000h',

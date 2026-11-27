@@ -2,6 +2,10 @@
 
 Anonymization is disabled unless all three server flags permit it. It never hard-deletes an Auth user, profile, wallet, ledger or admin audit record.
 
+## Automated completion of self-service requests
+
+The web runtime has no server key, so the `/admin` route cannot run in production. Verified self-service requests are completed by `.github/workflows/process-privacy-deletions.yml` (daily, `npm run privacy:deletions`): after a 7-day grace window (`PRIVACY_DELETION_GRACE_DAYS`) it applies phase 3 below with the Actions secret key, then calls the service-role-only `complete_privacy_deletion(request_id)`, which repeats phase 4 without a step-up grant and audits `privacy.deletion_complete` under the all-zero system actor. Accounts with non-email/phone providers or open leagues fail the run, which opens an issue for manual review. A manual run defaults to dry run. To cancel a mistaken request inside the grace window, reactivate the profile (`suspended` → `active`), which marks the request cancelled.
+
 ## Preconditions
 
 - target is a suspended, non-admin synthetic account;

@@ -1,5 +1,6 @@
 import { createHash, createHmac } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
+import { processPrivacyDeletions } from './process-privacy-deletions.mjs';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anon = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -739,6 +740,17 @@ try {
   const privacyRequest = ok(await admin.from('account_privacy_requests').select('status').eq('user_id',deletionId).single());
   if (deletionProfile.account_status !== 'suspended' || privacyRequest.status !== 'pending'
     || !(await deletion.rpc('get_account_portfolio')).error) throw new Error('Account deletion request did not suspend access');
+  if (!(await deletion.rpc('complete_privacy_deletion', { privacy_request_id:crypto.randomUUID() })).error) throw new Error('Users can complete privacy deletions');
+  const quiet = () => {};
+  if ((await processPrivacyDeletions(admin, { graceDays:1, userIds:[deletionId], log:quiet })).due !== 0) throw new Error('Deletion grace window was ignored');
+  const processed = await processPrivacyDeletions(admin, { graceDays:0, userIds:[deletionId], log:quiet });
+  if (processed.completed !== 1 || processed.failures.length) throw new Error('Automated privacy deletion failed');
+  const deletedProfile = ok(await admin.from('profiles').select('account_status,username').eq('id',deletionId).single());
+  const completedRequest = ok(await admin.from('account_privacy_requests').select('status').eq('user_id',deletionId).single());
+  const anonymizedAuth = ok(await admin.auth.admin.getUserById(deletionId)).user;
+  if (deletedProfile.account_status !== 'anonymized' || deletedProfile.username === deletionName || completedRequest.status !== 'completed'
+    || !anonymizedAuth.email.endsWith('@example.invalid')) throw new Error('Automated privacy deletion left personal data');
+  if ((await processPrivacyDeletions(admin, { graceDays:0, userIds:[deletionId], log:quiet })).due !== 0) throw new Error('Completed deletion was processed twice');
 
   const emblem = ok(await owner.from('cosmetics').select('id,slug,price').eq('slug','blaze').single());
   const beforeCosmetic = (await wallet(userIds[0])).balance;
@@ -766,7 +778,14 @@ try {
     const ledgerBalance = rows.reduce((sum,row) => sum + row.amount, 0);
     if (ledgerBalance !== (await wallet(id)).balance) throw new Error(`Wallet ledger reconciliation failed for ${id}`);
   }
-  console.log('Supabase auth, social, notifications, progression, wallet, cosmetics, league and admin checks passed.');
+  const expiredError = ok(await admin.from('app_errors').insert({ path:'/check', message:'retention-old', created_at:new Date(Date.now() - 31 * 86400000).toISOString() }).select('id').single());
+  const freshError = ok(await admin.from('app_errors').insert({ path:'/check', message:'retention-new' }).select('id').single());
+  ok(await admin.rpc('purge_expired_operational_logs'));
+  const keptErrors = ok(await admin.from('app_errors').select('id').in('id', [expiredError.id, freshError.id])).map(row => row.id);
+  if (keptErrors.includes(expiredError.id) || !keptErrors.includes(freshError.id)) throw new Error('Error-log retention purge failed');
+  if (!(await owner.rpc('purge_expired_operational_logs')).error) throw new Error('Users can run the retention purge');
+  if (!(await admin.from('admin_audit_log').delete().gte('id', 0)).error) throw new Error('Admin audit is no longer append-only');
+  console.log('Supabase auth, social, notifications, progression, wallet, cosmetics, league, retention and admin checks passed.');
 } finally {
   await admin.from('admin_runtime_config').update({ mutations_enabled:false, badge_mutations_enabled:false, updated_at:new Date().toISOString() }).eq('singleton',true);
   await admin.from('app_errors').delete().eq('path', '/check');
